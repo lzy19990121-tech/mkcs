@@ -1,0 +1,42 @@
+# 自动交易系统配置文件
+
+# 观察列表
+watchlist:
+  - AAPL
+  - GOOGL
+  - MSFT
+  - TSLA
+  - NVDA
+
+# 市场配置
+market:
+  type: US  # US 或 HK
+  timezone: America/New_York
+
+# 账户配置
+account:
+  initial_cash: 100000
+  commission_per_share: 0.01
+
+# 策略配置
+strategy:
+  name: MA
+  fast_period: 5
+  slow_period: 20
+
+# 风控配置
+risk:
+  max_position_ratio: 0.2
+  max_positions: 5
+  max_daily_loss_ratio: 0.05
+  blacklist: []
+
+# 数据源配置
+data_source:
+  type: mock  # mock 或 yfinance
+  seed: 42
+
+# 日志配置
+logging:
+  level: INFO
+  log_dir: logs

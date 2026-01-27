@@ -1,0 +1,3 @@
+{"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取AAPL历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取GOOGL历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取MSFT历史K线数据"}

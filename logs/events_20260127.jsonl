@@ -1,0 +1,1 @@
+{"ts": "2026-01-27T18:04:45.851586", "symbol": "AAPL", "stage": "order_exec", "payload": {"side": "BUY", "price": 150.0, "quantity": 100}, "reason": "订单执行成功"}

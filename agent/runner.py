@@ -18,6 +18,7 @@ from skills.risk.basic_risk import RiskManager, BasicRiskManager
 from skills.session.trading_session import TradingSession
 from broker.paper import PaperBroker
 from storage.db import TradeDB
+from events.event_log import EventLogger, get_event_logger
 
 
 class TradingAgent:
@@ -35,7 +36,8 @@ class TradingAgent:
         strategy: Strategy,
         risk_manager: RiskManager,
         broker: PaperBroker,
-        db: Optional[TradeDB] = None
+        db: Optional[TradeDB] = None,
+        event_logger: Optional[EventLogger] = None
     ):
         """初始化Agent
 
@@ -45,12 +47,14 @@ class TradingAgent:
             risk_manager: 风控管理器
             broker: 模拟经纪商
             db: 数据库（可选）
+            event_logger: 事件日志器（可选）
         """
         self.data_source = data_source
         self.strategy = strategy
         self.risk_manager = risk_manager
         self.broker = broker
         self.db = db
+        self.event_logger = event_logger or get_event_logger()
 
         # 初始化风控管理器的资金
         self.risk_manager.set_capital(float(self.broker.initial_cash))
@@ -101,6 +105,15 @@ class TradingAgent:
             if len(bars) < self.strategy.get_min_bars_required():
                 continue
 
+            # 记录数据获取事件
+            self.event_logger.log_event(
+                ts=datetime.combine(trading_date, sessions[0][0].time()),
+                symbol=symbol,
+                stage="data_fetch",
+                payload={"bars_count": len(bars), "interval": "1d"},
+                reason=f"获取{symbol}历史K线数据"
+            )
+
             # 2. 获取当前持仓
             position = self.broker.get_position(symbol)
 
@@ -110,6 +123,20 @@ class TradingAgent:
             for signal in signals:
                 result["signals_generated"] += 1
 
+                # 记录信号生成事件
+                self.event_logger.log_event(
+                    ts=datetime.combine(trading_date, sessions[0][0].time()),
+                    symbol=symbol,
+                    stage="signal_gen",
+                    payload={
+                        "action": signal.action,
+                        "price": float(signal.price),
+                        "quantity": signal.quantity,
+                        "confidence": signal.confidence
+                    },
+                    reason=signal.reason
+                )
+
                 # 4. 风控检查
                 intent = self.risk_manager.check(
                     signal,
@@ -117,11 +144,38 @@ class TradingAgent:
                     float(self.broker.get_cash_balance())
                 )
 
+                # 记录风控检查事件
+                self.event_logger.log_event(
+                    ts=datetime.combine(trading_date, sessions[0][0].time()),
+                    symbol=symbol,
+                    stage="risk_check",
+                    payload={
+                        "approved": intent.approved,
+                        "action": intent.signal.action
+                    },
+                    reason=intent.risk_reason
+                )
+
                 # 5. 执行交易
                 if intent.can_execute:
                     trade = self.broker.execute_order(intent)
                     if trade:
                         result["orders_executed"] += 1
+
+                        # 记录订单执行事件
+                        self.event_logger.log_event(
+                            ts=datetime.combine(trading_date, sessions[0][0].time()),
+                            symbol=symbol,
+                            stage="order_exec",
+                            payload={
+                                "side": trade.side,
+                                "price": float(trade.price),
+                                "quantity": trade.quantity,
+                                "commission": float(trade.commission)
+                            },
+                            reason="订单执行成功"
+                        )
+
                         if self.db:
                             self.db.save_trade(trade)
                     else:
@@ -239,12 +293,17 @@ class TradingAgent:
         print("="*60)
 
 
-def create_default_agent(initial_cash: float = 1000000, db_path: Optional[str] = None) -> TradingAgent:
+def create_default_agent(
+    initial_cash: float = 1000000,
+    db_path: Optional[str] = None,
+    log_dir: str = "logs"
+) -> TradingAgent:
     """创建默认配置的Agent
 
     Args:
         initial_cash: 初始资金
         db_path: 数据库路径（可选）
+        log_dir: 日志目录
 
     Returns:
         配置好的TradingAgent
@@ -263,8 +322,11 @@ def create_default_agent(initial_cash: float = 1000000, db_path: Optional[str] =
     # 创建数据库（可选）
     db = TradeDB(db_path) if db_path else None
 
+    # 创建事件日志器
+    event_logger = EventLogger(log_dir=log_dir)
+
     # 创建Agent
-    agent = TradingAgent(data_source, strategy, risk_manager, broker, db)
+    agent = TradingAgent(data_source, strategy, risk_manager, broker, db, event_logger)
 
     return agent
 
