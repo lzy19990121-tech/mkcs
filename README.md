@@ -37,8 +37,25 @@ pip install -r requirements.txt
 
 ### 运行回测
 
+基础回测（使用模拟数据）：
 ```bash
-python -m agent.runner --start 2024-01-01 --end 2024-01-31
+python -m agent.runner --start 2024-01-01 --end 2024-01-31 --cash 100000
+```
+
+带数据库持久化的回测：
+```bash
+python -m agent.runner --start 2024-01-01 --end 2024-01-31 --db trading.db
+```
+
+查看帮助：
+```bash
+python -m agent.runner --help
+```
+
+### 运行集成测试
+
+```bash
+python tests/test_integration.py
 ```
 
 ### 测试各个模块
@@ -46,11 +63,81 @@ python -m agent.runner --start 2024-01-01 --end 2024-01-31
 每个模块都有独立的main函数用于自测：
 
 ```bash
-python -m skills.market_data.mock_source
-python -m skills.strategy.moving_average
-python -m skills.risk.basic_risk
-python -m broker.paper
+# 测试数据模型
+python core/models.py
+
+# 测试市场数据源
+PYTHONPATH=/home/gushengdong/mkcs python -m skills.market_data.mock_source
+
+# 测试交易时段管理
+PYTHONPATH=/home/gushengdong/mkcs python skills/session/trading_session.py
+
+# 测试策略
+PYTHONPATH=/home/gushengdong/mkcs python -m skills.strategy.moving_average
+
+# 测试风控
+PYTHONPATH=/home/gushengdong/mkcs python -m skills.risk.basic_risk
+
+# 测试模拟经纪商
+PYTHONPATH=/home/gushengdong/mkcs python broker/paper.py
+
+# 测试报告生成
+PYTHONPATH=/home/gushengdong/mkcs python -m reports.daily
 ```
+
+## 功能特性
+
+### 已实现模块
+
+1. **核心数据模型** (core/models.py)
+   - Bar: K线数据
+   - Quote: 实时报价
+   - Signal: 交易信号
+   - OrderIntent: 订单意图
+   - Trade: 成交记录
+   - Position: 持仓信息
+
+2. **市场数据Skill** (skills/market_data/)
+   - MockMarketSource: 模拟数据生成器
+   - TrendingMockSource: 带趋势的模拟数据
+   - 支持美股和港股
+
+3. **交易时段Skill** (skills/session/)
+   - 美股交易日历
+   - 港股交易日历
+   - 交易时段检查
+
+4. **策略Skill** (skills/strategy/)
+   - MAStrategy: 移动平均线交叉策略
+   - 可扩展的策略基类
+
+5. **风控Skill** (skills/risk/)
+   - BasicRiskManager: 基础风控规则
+   - 仓位限制
+   - 黑名单
+   - 资金充足性检查
+   - 单日亏损限制
+
+6. **模拟经纪商** (broker/)
+   - PaperBroker: 虚拟账户管理
+   - 订单执行
+   - 持仓管理
+   - 资金管理
+
+7. **Agent编排器** (agent/)
+   - TradingAgent: 任务编排
+   - 回测主循环
+   - 协调各个skill
+
+8. **报告生成** (reports/)
+   - DailyReport: 每日报告
+   - BacktestReport: 回测报告
+
+9. **数据持久化** (storage/)
+   - SQLite数据库
+   - 交易记录存储
+   - K线数据存储
+   - 持仓快照存储
 
 ## 开发状态
 
