@@ -142,7 +142,7 @@ class MAStrategy(Strategy):
             置信度 (0-1)
         """
         # 计算两条均线的相对距离
-        distance_percent = abs((fast_ma - slow_ma) / slow_ma)
+        distance_percent = float(abs((fast_ma - slow_ma) / slow_ma))
 
         # 将距离转换为置信度（最大0.95）
         confidence = min(0.5 + distance_percent * 10, 0.95)

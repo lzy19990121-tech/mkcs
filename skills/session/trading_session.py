@@ -4,7 +4,7 @@
 支持美股和港股的交易日历和时段检查
 """
 
-from datetime import datetime, time, date
+from datetime import datetime, time, date, timedelta
 from typing import Tuple, List
 
 
