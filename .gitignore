@@ -63,6 +63,8 @@ venv.bak/
 
 # Logs
 *.log
+logs/
+*.jsonl
 
 # OS
 .DS_Store
