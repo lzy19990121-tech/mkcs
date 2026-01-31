@@ -35,6 +35,37 @@ from analysis.risk_card_generator import (
     generate_risk_cards
 )
 
+# SPL-3b 深度分析模块
+from analysis.perturbation_test import (
+    PerturbationTester,
+    PerturbationConfig,
+    PerturbationResult,
+    test_all_perturbations
+)
+
+from analysis.structural_analysis import (
+    StructuralAnalyzer,
+    StructuralAnalysisResult,
+    RiskPatternType,
+    RiskPatternMetrics,
+    analyze_all_structures
+)
+
+from analysis.risk_envelope import (
+    RiskEnvelopeBuilder,
+    RiskEnvelope,
+    format_envelope_report
+)
+
+from analysis.actionable_rules import (
+    RiskRuleGenerator,
+    RiskRule,
+    RiskRuleset,
+    RuleType,
+    RuleScope,
+    format_ruleset_report
+)
+
 __all__ = [
     # Schema
     'ReplayOutput',
@@ -61,4 +92,28 @@ __all__ = [
     'RiskCardGenerator',
     'RiskCardConfig',
     'generate_risk_cards',
+
+    # SPL-3b Deep Analysis
+    'PerturbationTester',
+    'PerturbationConfig',
+    'PerturbationResult',
+    'test_all_perturbations',
+
+    'StructuralAnalyzer',
+    'StructuralAnalysisResult',
+    'RiskPatternType',
+    'RiskPatternMetrics',
+    'analyze_all_structures',
+
+    'RiskEnvelopeBuilder',
+    'RiskEnvelope',
+    'format_envelope_report',
+    'build_all_envelopes',
+
+    'RiskRuleGenerator',
+    'RiskRule',
+    'RiskRuleset',
+    'RuleType',
+    'RuleScope',
+    'format_ruleset_report',
 ]
