@@ -181,7 +181,18 @@ def test_tui():
     )
     broker.on_bar(bar)
 
-    tui.set_broker(broker)
+    # 使用 StateCallback 替代直接 broker 访问
+    from tui.watchlist import SimpleStateCallback
+    state_callback = SimpleStateCallback(initial_cash=100000)
+    state_callback.positions['AAPL'] = {
+        'symbol': 'AAPL',
+        'quantity': 100,
+        'avg_price': 150.0,
+        'market_value': 15050.0,
+        'unrealized_pnl': 50.0
+    }
+    state_callback.cash = 84950.0
+    tui.set_state_callback(state_callback)
 
     # 渲染TUI
     layout = tui.render()

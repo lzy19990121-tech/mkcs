@@ -20,11 +20,23 @@ LLM不参与实时下单，只做盘后分析和策略配置。
 mkcs/
 ├── core/           # 核心数据模型
 ├── skills/         # 各种技能模块（市场数据、策略、风控等）
+│   └── market_data/
+│       ├── mock_source.py    # 模拟数据源
+│       ├── csv_source.py     # CSV数据源（回测）
+│       └── yahoo_source.py   # Yahoo Finance数据源
 ├── broker/         # 模拟交易执行
 ├── agent/          # 任务编排和状态管理
+│   ├── runner.py           # 交易Agent
+│   └── replay_engine.py    # 回放引擎
 ├── storage/        # 数据持久化
 ├── reports/        # 报告生成
-└── tests/          # 测试用例
+├── events/         # 事件日志系统
+├── tui/            # 终端UI界面
+├── utils/          # 工具函数
+│   └── hash.py     # 哈希计算工具
+├── config.py       # 回测配置类
+├── data/           # 数据文件目录
+└── tests/          # 测���用例
 ```
 
 ## 快速开始
@@ -36,6 +48,44 @@ pip install -r requirements.txt
 ```
 
 ### 运行回放回测
+
+#### 使用配置文件（推荐）
+
+```python
+from config import create_mock_config
+from agent.runner import run_backtest_with_config
+
+# 创建配置
+config = create_mock_config(
+    symbols=['AAPL', 'MSFT'],
+    start_date='2024-01-01',
+    end_date='2024-01-31',
+    seed=42
+)
+
+# 运行回测
+result = run_backtest_with_config(config)
+```
+
+#### 使用CSV真实数据
+
+```python
+from config import BacktestConfig
+from agent.runner import run_backtest_with_config
+
+config = BacktestConfig(
+    data_source='csv',
+    data_path='data/aapl_2023.csv',
+    symbols=['AAPL'],
+    start_date='2023-01-01',
+    end_date='2023-04-30',
+    strategy_params={'fast_period': 3, 'slow_period': 10}
+)
+
+result = run_backtest_with_config(config)
+```
+
+#### 命令行方式
 
 基础回放（使用模拟数据）：
 ```bash
@@ -159,10 +209,35 @@ PYTHONPATH=/home/neal/mkcs python -m reports.daily
 
 回放结束会输出以下文件到 `--output-dir`：
 
-- `summary.json`
-- `equity_curve.csv`
-- `trades.csv`
-- `risk_rejects.csv`
+- `summary.json` - 回测摘要，包含配置哈希、git commit、metrics等
+- `equity_curve.csv` - 每日权益曲线
+- `trades.csv` - 所有成交记录
+- `risk_rejects.csv` - 风控拒绝记录
+
+## 可复现回测系统
+
+系统支持可信、可复现的回测结果：
+
+### 配置哈希
+每次回测自动计算配置哈希，确保配置可追踪：
+```json
+{
+  "config_hash": "sha256:7d24743fa7149f3b",
+  "git_commit": "15dde232",
+  "data_hash": "sha256:48724fba7f560f93"
+}
+```
+
+### 100%复现
+相同配置 + seed = 完全相同的结果：
+```bash
+# 验证可复现性
+python test_reproducibility.py
+```
+
+### 回放模式
+- `replay_mock` - 工程闭环验证（模拟数据）
+- `replay_real` - 策略/风控验证（CSV真实数据）
 
 ## 许可证
 

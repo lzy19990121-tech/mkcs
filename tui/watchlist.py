@@ -25,6 +25,33 @@ from events.event_log import get_event_logger
 from broker.paper import PaperBroker
 
 
+class StateCallback:
+    """状态回调接口
+
+    TUI 通过此接口获取状态，而不是直接访问 Broker
+    """
+
+    def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """获取持仓信息"""
+        return None
+
+    def get_positions(self) -> Dict[str, Dict[str, Any]]:
+        """获取所有持仓"""
+        return {}
+
+    def get_cash_balance(self) -> float:
+        """获取现金余额"""
+        return 0.0
+
+    def get_total_equity(self) -> float:
+        """获取总权益"""
+        return 0.0
+
+    def get_total_pnl(self) -> float:
+        """获取总盈亏"""
+        return 0.0
+
+
 class WatchlistTUI:
     """观察列表TUI
 
@@ -33,19 +60,22 @@ class WatchlistTUI:
     - 右上：选中标的详情
     - 右中：最新订单/成交
     - 右下：风控状态
+
+    注意：TUI 只通过 EventLogger 读取状态，不直接访问 Broker
     """
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", state_callback: Optional[StateCallback] = None):
         """初始化TUI
 
         Args:
             config_path: 配置文件路径
+            state_callback: 状态回调接口（可选）
         """
         self.config = self._load_config(config_path)
         self.console = Console()
         self.event_logger = get_event_logger()
         self.selected_index = 0
-        self.broker = None  # 将从外部注入
+        self.state_callback = state_callback  # 替代直接 broker 访问
 
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """加载配置文件
@@ -85,13 +115,95 @@ class WatchlistTUI:
             return self.watchlist[self.selected_index]
         return None
 
-    def set_broker(self, broker: PaperBroker):
-        """设置经纪商
+    def set_state_callback(self, callback: StateCallback):
+        """设置状态回调
 
         Args:
-            broker: 模拟经纪商实例
+            callback: 状态回调接口
         """
-        self.broker = broker
+        self.state_callback = callback
+
+    def _get_position_from_events(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """从事件日志中获取持仓信息"""
+        # 查询成交事件来推断持仓
+        events = self.event_logger.query_events(symbol=symbol, stage="order_fill")
+        if not events:
+            return None
+
+        # 计算持仓
+        quantity = 0
+        avg_price = 0.0
+        total_cost = 0.0
+
+        for event in events:
+            payload = event.get('payload', {})
+            side = payload.get('side', '')
+            price = payload.get('price', 0)
+            qty = payload.get('quantity', 0)
+
+            if side == 'BUY':
+                total_cost += price * qty
+                quantity += qty
+                if quantity > 0:
+                    avg_price = total_cost / quantity
+            elif side == 'SELL':
+                quantity -= qty
+                if quantity <= 0:
+                    quantity = 0
+                    total_cost = 0
+                    avg_price = 0
+
+        if quantity == 0:
+            return None
+
+        # 获取最新价格
+        latest_price = self._get_latest_price(symbol)
+        market_value = latest_price * quantity if latest_price else total_cost
+        unrealized_pnl = (latest_price - avg_price) * quantity if latest_price else 0
+
+        return {
+            'symbol': symbol,
+            'quantity': quantity,
+            'avg_price': avg_price,
+            'market_value': market_value,
+            'unrealized_pnl': unrealized_pnl
+        }
+
+    def _get_latest_price(self, symbol: str) -> Optional[float]:
+        """从事件日志获取最新价格"""
+        events = self.event_logger.query_events(symbol=symbol)
+        for event in reversed(events):
+            payload = event.get('payload', {})
+            if 'price' in payload:
+                return payload['price']
+        return None
+
+    def _get_account_from_events(self) -> Dict[str, float]:
+        """从事件日志获取账户信息"""
+        # 查询系统事件获取初始资金
+        events = self.event_logger.query_events(stage="system")
+        initial_cash = 100000.0  # 默认值
+
+        for event in events:
+            payload = event.get('payload', {})
+            if 'initial_cash' in payload:
+                initial_cash = payload['initial_cash']
+                break
+
+        # 计算已实现盈亏
+        pnl = 0.0
+        fill_events = self.event_logger.query_events(stage="order_fill")
+        for event in fill_events:
+            payload = event.get('payload', {})
+            # 这里简化处理，实际需要更复杂的计算
+            commission = payload.get('commission', 0)
+            pnl -= commission
+
+        return {
+            'cash': initial_cash + pnl,  # 简化计算
+            'equity': initial_cash + pnl,
+            'pnl': pnl
+        }
 
     def render(self) -> Layout:
         """渲染TUI布局
@@ -212,15 +324,14 @@ class WatchlistTUI:
             lines.append(f"[bold]原因:[/bold] {latest['reason']}\n")
 
         # 持仓情况
-        if self.broker:
-            position = self.broker.get_position(symbol)
-            if position:
-                lines.append(f"[bold]持仓:[/bold] {position.quantity}股")
-                lines.append(f"[bold]成本:[/bold] ${position.avg_price:.2f}")
-                lines.append(f"[bold]市值:[/bold] ${position.market_value:,.2f}")
-                lines.append(f"[bold]浮盈:[/bold] ${position.unrealized_pnl:,.2f}\n")
-            else:
-                lines.append("[bold]持仓:[/bold] 无\n")
+        position = self._get_position_from_events(symbol)
+        if position:
+            lines.append(f"[bold]持仓:[/bold] {position['quantity']}股")
+            lines.append(f"[bold]成本:[/bold] ${position['avg_price']:.2f}")
+            lines.append(f"[bold]市值:[/bold] ${position['market_value']:,.2f}")
+            lines.append(f"[bold]浮盈:[/bold] ${position['unrealized_pnl']:,.2f}\n")
+        else:
+            lines.append("[bold]持仓:[/bold] 无\n")
 
         # 最新事件
         lines.append("[bold]最近事件:[/bold]")
@@ -306,26 +417,26 @@ class WatchlistTUI:
         # 当前状态
         lines.append("[bold cyan]当前状态[/bold cyan]\n")
 
-        if self.broker:
-            # 账户信息
-            cash = self.broker.get_cash_balance()
-            equity = self.broker.get_total_equity()
-            positions = self.broker.get_positions()
+        # 从事件日志获取账户信息
+        account = self._get_account_from_events()
+        cash = account.get('cash', 0)
+        equity = account.get('equity', 0)
+        pnl = account.get('pnl', 0)
 
-            lines.append(f"可用资金: ${cash:,.2f}")
-            lines.append(f"总权益: ${equity:,.2f}")
-            lines.append(f"持仓数量: {len(positions)}/{risk_config.get('max_positions', 5)}")
-            lines.append(f"仓位比例: {equity/cash*100 if cash > 0 else 0:.1f}%")
+        lines.append(f"可用资金: ${cash:,.2f}")
+        lines.append(f"总权益: ${equity:,.2f}")
+        lines.append(f"持仓数量: {len(self._get_positions_from_events())}/{risk_config.get('max_positions', 5)}")
+        lines.append(f"仓位比例: {equity/cash*100 if cash > 0 else 0:.1f}%")
 
-            # 计算单日盈亏
-            pnl = self.broker.get_total_pnl()
-            daily_loss_ratio = pnl / self.broker.initial_cash
-            limit = risk_config.get('max_daily_loss_ratio', 0.05)
+        # 计算单日盈亏
+        initial_cash = self.config.get('account', {}).get('initial_cash', 100000)
+        daily_loss_ratio = pnl / initial_cash if initial_cash > 0 else 0
+        limit = risk_config.get('max_daily_loss_ratio', 0.05)
 
-            if daily_loss_ratio < -limit:
-                lines.append(f"\n[red]⚠️  单日亏损超限: {daily_loss_ratio*100:.2f}%[/red]")
-            else:
-                lines.append(f"\n单日盈亏: {daily_loss_ratio*100:+.2f}%")
+        if daily_loss_ratio < -limit:
+            lines.append(f"\n[red]⚠️  单日亏损超限: {daily_loss_ratio*100:.2f}%[/red]")
+        else:
+            lines.append(f"\n单日盈亏: {daily_loss_ratio*100:+.2f}%")
 
         content = '\n'.join(lines)
 
@@ -347,6 +458,15 @@ class WatchlistTUI:
             box=box.DOUBLE
         )
 
+    def _get_positions_from_events(self) -> Dict[str, Dict[str, Any]]:
+        """从事件日志获取所有持仓"""
+        positions = {}
+        for symbol in self.watchlist:
+            pos = self._get_position_from_events(symbol)
+            if pos:
+                positions[symbol] = pos
+        return positions
+
     def _get_symbol_status(self, symbol: str) -> str:
         """获取标的状态
 
@@ -356,11 +476,10 @@ class WatchlistTUI:
         Returns:
             状态文本
         """
-        # 检查是否有持仓
-        if self.broker:
-            position = self.broker.get_position(symbol)
-            if position:
-                return "持有"
+        # 检查是否有持仓（从事件日志）
+        position = self._get_position_from_events(symbol)
+        if position and position.get('quantity', 0) > 0:
+            return "持有"
 
         # 检查最新信号
         events = self.event_logger.query_events(symbol=symbol)
@@ -382,12 +501,15 @@ class WatchlistTUI:
         Returns:
             价格字符串
         """
-        # TODO：从数据源获取实时价格
+        # 从事件日志获取最新价格
+        latest_price = self._get_latest_price(symbol)
+        if latest_price:
+            return f"${latest_price:.2f}"
+
         # 如果有持仓，显示成本价
-        if self.broker:
-            position = self.broker.get_position(symbol)
-            if position:
-                return f"${position.avg_price:.2f}"
+        position = self._get_position_from_events(symbol)
+        if position:
+            return f"${position.get('avg_price', 0):.2f}"
 
         return "-"
 
@@ -406,54 +528,52 @@ class WatchlistTUI:
         print("请使用 run_simple_display() 查看静态显示")
 
 
+class SimpleStateCallback(StateCallback):
+    """简单的状态回调实现（用于测试）"""
+
+    def __init__(self, initial_cash: float = 100000):
+        self.initial_cash = initial_cash
+        self.cash = initial_cash
+        self.positions: Dict[str, Dict[str, Any]] = {}
+
+    def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+        return self.positions.get(symbol)
+
+    def get_positions(self) -> Dict[str, Dict[str, Any]]:
+        return self.positions
+
+    def get_cash_balance(self) -> float:
+        return self.cash
+
+    def get_total_equity(self) -> float:
+        equity = self.cash
+        for pos in self.positions.values():
+            equity += pos.get('market_value', 0)
+        return equity
+
+    def get_total_pnl(self) -> float:
+        return self.get_total_equity() - self.initial_cash
+
+
 def run_simple_display():
     """运行简单显示（测试用）"""
-    import time
-
     print("\n=== TUI 简单显示演示 ===\n")
 
+    # 创建状态回调
+    state_callback = SimpleStateCallback(initial_cash=100000)
+
+    # 模拟持仓
+    state_callback.positions['AAPL'] = {
+        'symbol': 'AAPL',
+        'quantity': 100,
+        'avg_price': 150.0,
+        'market_value': 15050.0,
+        'unrealized_pnl': 50.0
+    }
+    state_callback.cash = 84950.0
+
     # 创建TUI
-    tui = WatchlistTUI()
-
-    # 创建模拟经纪商
-    from broker.paper import PaperBroker
-    from decimal import Decimal
-
-    broker = PaperBroker(initial_cash=100000)
-
-    # 执行一笔交易
-    from core.models import Signal, OrderIntent
-    signal = Signal(
-        symbol="AAPL",
-        timestamp=datetime.now(),
-        action="BUY",
-        price=Decimal("150.00"),
-        quantity=100,
-        confidence=0.85,
-        reason="金叉买入"
-    )
-
-    intent = OrderIntent(
-        signal=signal,
-        timestamp=datetime.now(),
-        approved=True,
-        risk_reason="OK"
-    )
-
-    order = broker.submit_order(intent)
-
-    from core.models import Bar
-    bar = Bar(
-        symbol="AAPL",
-        timestamp=datetime.now() + timedelta(days=1),
-        open=Decimal("150.00"),
-        high=Decimal("151.00"),
-        low=Decimal("149.00"),
-        close=Decimal("150.50"),
-        volume=100000,
-        interval="1d"
-    )
-    broker.on_bar(bar)
+    tui = WatchlistTUI(state_callback=state_callback)
 
     # 记录事件
     logger = get_event_logger()
@@ -464,8 +584,6 @@ def run_simple_display():
         payload={"side": "BUY", "price": 150.0, "quantity": 100},
         reason="订单执行成功"
     )
-
-    tui.set_broker(broker)
 
     # 渲染布局
     layout = tui.render()

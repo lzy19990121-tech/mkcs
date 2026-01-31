@@ -6,7 +6,7 @@
 
 from datetime import datetime, date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import sys
 import argparse
 import csv
@@ -16,6 +16,7 @@ from pathlib import Path
 from core.context import RunContext
 from core.models import Position, OrderIntent, Signal
 from skills.market_data.mock_source import MarketDataSource, MockMarketSource
+from skills.market_data.csv_source import CSVDataSource
 from skills.strategy.base import Strategy
 from skills.strategy.moving_average import MAStrategy
 from skills.risk.basic_risk import RiskManager, BasicRiskManager
@@ -23,7 +24,8 @@ from skills.session.trading_session import TradingSession
 from broker.paper import PaperBroker
 from storage.db import TradeDB
 from events.event_log import EventLogger, get_event_logger
-from agent.replay_engine import ReplayEngine
+from agent.replay_engine import ReplayEngine, ReplayMode
+from config import BacktestConfig
 
 
 class TradingAgent:
@@ -42,7 +44,8 @@ class TradingAgent:
         risk_manager: RiskManager,
         broker: PaperBroker,
         db: Optional[TradeDB] = None,
-        event_logger: Optional[EventLogger] = None
+        event_logger: Optional[EventLogger] = None,
+        config: Optional[BacktestConfig] = None
     ):
         """初始化Agent
 
@@ -53,6 +56,7 @@ class TradingAgent:
             broker: 模拟经纪商
             db: 数据库（可选）
             event_logger: 事件日志器（可选）
+            config: 回测配置（可选）
         """
         self.data_source = data_source
         self.strategy = strategy
@@ -60,6 +64,7 @@ class TradingAgent:
         self.broker = broker
         self.db = db
         self.event_logger = event_logger or get_event_logger()
+        self.config = config
 
         # 初始化风控管理器的资金
         self.risk_manager.set_capital(float(self.broker.initial_cash))
@@ -218,17 +223,40 @@ class TradingAgent:
 
     def run_replay_backtest(
         self,
-        start: date,
-        end: date,
-        symbols: List[str],
-        interval: str,
+        start: date = None,
+        end: date = None,
+        symbols: List[str] = None,
+        interval: str = "1d",
         output_dir: str = "reports/replay",
-        verbose: bool = True
+        verbose: bool = True,
+        mode: ReplayMode = ReplayMode.MOCK
     ) -> List[dict]:
-        """运行回放回测"""
+        """运行回放回测
+
+        Args:
+            start: 开始日期（默认从 config 读取）
+            end: 结束日期（默认从 config 读取）
+            symbols: 交易标的（默认从 config 读取）
+            interval: K线周期
+            output_dir: 输出目录
+            verbose: 是否打印详细信息
+            mode: 回放模式 (MOCK/REAL)
+
+        Returns:
+            每日结果列表
+        """
+        # 从 config 获取参数（如果未提供）
+        if self.config:
+            start = start or datetime.strptime(self.config.start_date, "%Y-%m-%d").date()
+            end = end or datetime.strptime(self.config.end_date, "%Y-%m-%d").date()
+            symbols = symbols or self.config.symbols
+
         results = []
         market = TradingSession.get_market_type(symbols[0]) if symbols else 'US'
-        engine = ReplayEngine(start=start, end=end, interval=interval, market=market)
+        engine = ReplayEngine(
+            start=start, end=end, interval=interval, market=market,
+            mode=mode, config=self.config
+        )
 
         equity_curve = []
         risk_rejects = []
@@ -236,6 +264,7 @@ class TradingAgent:
         if verbose:
             trading_days = TradingSession.get_trading_days(start, end, market)
             print(f"\n开始回放: {start} 到 {end}")
+            print(f"回放模式: {mode.value}")
             print(f"交易标的: {', '.join(symbols)}")
             print(f"交易日数量: {len(trading_days)}")
             print(f"初始资金: ${self.broker.get_cash_balance():,.2f}\n")
@@ -280,7 +309,10 @@ class TradingAgent:
         if verbose:
             self._print_summary()
 
-        self._write_replay_outputs(output_dir, start, end, interval, symbols, equity_curve, risk_rejects)
+        self._write_replay_outputs(
+            output_dir, start, end, interval, symbols, equity_curve, risk_rejects,
+            mode=mode, engine_metadata=engine.get_metadata() if hasattr(engine, 'get_metadata') else {}
+        )
 
         return results
 
@@ -308,20 +340,85 @@ class TradingAgent:
         interval: str,
         symbols: List[str],
         equity_curve: List[dict],
-        risk_rejects: List[dict]
+        risk_rejects: List[dict],
+        mode: ReplayMode = ReplayMode.MOCK,
+        engine_metadata: Dict[str, Any] = None
     ):
+        from utils.hash import get_git_commit, compute_config_hash, compute_data_hash
+
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # 构建完整的 summary
+        backtest_date = datetime.now().isoformat()
+
+        # 数据源信息
+        data_source_info = {"type": "mock"}
+        data_hash = None
+        if self.config:
+            data_source_info = {
+                "type": self.config.data_source,
+                "path": self.config.data_path,
+                "seed": self.config.seed if self.config.data_source == "mock" else None
+            }
+            # 计算数据哈希
+            if self.config.data_path:
+                data_hash = compute_data_hash(self.config.data_path)
+
+        # 配置信息
+        config_info = {}
+        if self.config:
+            config_info = {
+                "data_source": self.config.data_source,
+                "symbols": self.config.symbols,
+                "start_date": self.config.start_date,
+                "end_date": self.config.end_date,
+                "commission": {
+                    "type": self.config.commission_type,
+                    "value": self.config.commission_per_share
+                },
+                "slippage": {
+                    "enabled": self.config.slippage_enabled,
+                    "type": self.config.slippage_type,
+                    "value": self.config.slippage_value
+                },
+                "strategy": {
+                    "name": self.config.strategy_name,
+                    "params": self.config.strategy_params
+                },
+                "risk": self.config.risk_params
+            }
+
+        # 计算配置哈希
+        config_hash = engine_metadata.get("config_hash") if engine_metadata else None
+        if not config_hash and self.config:
+            config_hash = self.config.compute_hash()
+
         summary = {
-            "start": start.isoformat(),
-            "end": end.isoformat(),
-            "interval": interval,
+            "backtest_date": backtest_date,
+            "replay_mode": mode.value,
+
+            "data_source": data_source_info,
+            "data_hash": data_hash,
+
+            "config": config_info,
+            "config_hash": config_hash or "unknown",
+            "git_commit": engine_metadata.get("git_commit") if engine_metadata else get_git_commit(short=True),
+
+            "date_range": {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "interval": interval
+            },
             "symbols": symbols,
-            "initial_cash": float(self.broker.initial_cash),
-            "final_equity": float(self.broker.get_total_equity()),
-            "total_pnl": float(self.broker.get_total_pnl()),
-            "trade_count": len(self.broker.get_trades())
+
+            "metrics": {
+                "initial_cash": float(self.broker.initial_cash),
+                "final_equity": float(self.broker.get_total_equity()),
+                "total_return": float(self.broker.get_total_pnl() / self.broker.initial_cash),
+                "total_pnl": float(self.broker.get_total_pnl()),
+                "trade_count": len(self.broker.get_trades())
+            }
         }
 
         summary_path = out_dir / "summary.json"
@@ -417,7 +514,8 @@ def create_default_agent(
     initial_cash: float = 1000000,
     db_path: Optional[str] = None,
     log_dir: str = "logs",
-    seed: int = 42
+    seed: int = 42,
+    config: Optional[BacktestConfig] = None
 ) -> TradingAgent:
     """创建默认配置的Agent
 
@@ -425,20 +523,61 @@ def create_default_agent(
         initial_cash: 初始资金
         db_path: 数据库路径（可选）
         log_dir: 日志目录
+        seed: 随机种子
+        config: 回测配置（可选，会覆盖其他参数）
 
     Returns:
         配置好的TradingAgent
     """
-    # 创建各个组件
-    data_source = MockMarketSource(seed=seed)
-    strategy = MAStrategy(fast_period=5, slow_period=20)
-    risk_manager = BasicRiskManager(
-        max_position_ratio=0.2,
-        max_positions=5,
-        blacklist=set(),
-        max_daily_loss_ratio=0.05
-    )
-    broker = PaperBroker(initial_cash=initial_cash, commission_per_share=0.01)
+    # 使用配置或默认参数
+    if config:
+        initial_cash = config.initial_cash
+        seed = config.seed
+
+        # 根据数据源类型创建数据源
+        if config.data_source == "csv" and config.data_path:
+            data_source = CSVDataSource(
+                data_dir=str(Path(config.data_path).parent),
+                symbol_map={s: Path(config.data_path).name for s in config.symbols}
+            )
+        else:
+            data_source = MockMarketSource(seed=seed)
+
+        # 创建策略
+        strategy_params = config.strategy_params or {}
+        if config.strategy_name == "ma":
+            strategy = MAStrategy(
+                fast_period=strategy_params.get("fast_period", 5),
+                slow_period=strategy_params.get("slow_period", 20)
+            )
+        else:
+            strategy = MAStrategy(fast_period=5, slow_period=20)
+
+        # 创建风控
+        risk_params = config.risk_params or {}
+        risk_manager = BasicRiskManager(
+            max_position_ratio=risk_params.get("max_position_ratio", 0.2),
+            max_positions=risk_params.get("max_positions", 5),
+            blacklist=set(risk_params.get("blacklist", [])),
+            max_daily_loss_ratio=risk_params.get("max_daily_loss_ratio", 0.05)
+        )
+
+        # 创建经纪商
+        broker = PaperBroker(
+            initial_cash=initial_cash,
+            commission_per_share=config.commission_per_share
+        )
+    else:
+        # 创建默认组件
+        data_source = MockMarketSource(seed=seed)
+        strategy = MAStrategy(fast_period=5, slow_period=20)
+        risk_manager = BasicRiskManager(
+            max_position_ratio=0.2,
+            max_positions=5,
+            blacklist=set(),
+            max_daily_loss_ratio=0.05
+        )
+        broker = PaperBroker(initial_cash=initial_cash, commission_per_share=0.01)
 
     # 创建数据库（可选）
     db = TradeDB(db_path) if db_path else None
@@ -447,9 +586,52 @@ def create_default_agent(
     event_logger = EventLogger(log_dir=log_dir)
 
     # 创建Agent
-    agent = TradingAgent(data_source, strategy, risk_manager, broker, db, event_logger)
+    agent = TradingAgent(data_source, strategy, risk_manager, broker, db, event_logger, config)
 
     return agent
+
+
+def run_backtest_with_config(
+    config: BacktestConfig,
+    output_dir: str = "reports/replay",
+    verbose: bool = True
+) -> Dict[str, Any]:
+    """使用配置运行回测
+
+    Args:
+        config: 回测配置
+        output_dir: 输出目录
+        verbose: 是否打印详细信息
+
+    Returns:
+        回测结果摘要
+    """
+    # 创建 Agent
+    agent = create_default_agent(config=config)
+
+    # 确定回放模式
+    mode = ReplayMode.REAL if config.data_source == "csv" else ReplayMode.MOCK
+
+    # 运行回测
+    start = datetime.strptime(config.start_date, "%Y-%m-%d").date()
+    end = datetime.strptime(config.end_date, "%Y-%m-%d").date()
+
+    results = agent.run_replay_backtest(
+        start=start,
+        end=end,
+        symbols=config.symbols,
+        interval=config.interval,
+        output_dir=output_dir,
+        verbose=verbose,
+        mode=mode
+    )
+
+    # 读取并返回摘要
+    summary_path = Path(output_dir) / "summary.json"
+    if summary_path.exists():
+        return json.loads(summary_path.read_text())
+
+    return {"results_count": len(results)}
 
 
 if __name__ == "__main__":
