@@ -1,0 +1,24 @@
+{
+  "backtest_date": "2026-01-31T09:57:03.923500",
+  "start_date": "2022-01-01",
+  "end_date": "2024-12-31",
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA"
+  ],
+  "initial_cash": 100000.0,
+  "final_equity": 100735.0,
+  "total_return": 0.00735,
+  "total_trades": 59,
+  "total_signals": 139,
+  "total_orders": 59,
+  "total_fills": 59,
+  "risk_rejects": 80,
+  "trading_days": 772,
+  "data_source": "Mock",
+  "strategy": "MA_Crossover_5_20",
+  "risk_manager": "BasicRiskManager"
+}

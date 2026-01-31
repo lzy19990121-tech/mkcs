@@ -13,3 +13,8 @@
 {"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
 {"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
 {"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 40, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 40, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 40, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "AMZN", "stage": "data_fetch", "payload": {"bars_count": 40, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "NVDA", "stage": "data_fetch", "payload": {"bars_count": 40, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
