@@ -565,7 +565,8 @@ def create_default_agent(
         # 创建经纪商
         broker = PaperBroker(
             initial_cash=initial_cash,
-            commission_per_share=config.commission_per_share
+            commission_per_share=config.commission_per_share,
+            slippage_bps=getattr(config, 'slippage_bps', 0.0)
         )
     else:
         # 创建默认组件

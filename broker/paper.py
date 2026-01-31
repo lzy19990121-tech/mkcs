@@ -40,24 +40,29 @@ class PaperBroker:
     功能：
         - 维护虚拟账户和资金
         - 接受订单并在下一根bar撮合
-    - 计算手续费
-    - 更新持仓和资金
+        - 计算手续费
+        - 更新持仓和资金
+        - 可配置的BPS滑点模型
     """
 
     def __init__(
         self,
         initial_cash: float = 1000000.0,
-        commission_per_share: float = 0.01
+        commission_per_share: float = 0.01,
+        slippage_bps: float = 0.0
     ):
         """初始化模拟账户
 
         Args:
             initial_cash: 初始资金（默认100万美元）
             commission_per_share: 每股手续费（默认0.01美元）
+            slippage_bps: 滑点（基点，1 BPS = 0.01%，默认0表示无滑点）
+                          例如：slippage_bps=5 表示0.05%的滑点
         """
         self.initial_cash = Decimal(str(initial_cash))
         self.cash = self.initial_cash
         self.commission_per_share = Decimal(str(commission_per_share))
+        self.slippage_bps = Decimal(str(slippage_bps))  # BPS滑点
 
         # 持仓字典
         self.positions: Dict[str, Position] = {}
@@ -121,7 +126,17 @@ class PaperBroker:
         return fills, rejects
 
     def _fill_order(self, order: Order, bar) -> tuple[Optional[Trade], str]:
+        # 计算执行价格（BPS滑点）
         price = bar.open
+
+        # 应用滑点：买入价格偏高，卖出价格偏低
+        if self.slippage_bps > 0:
+            slippage_amount = price * self.slippage_bps / Decimal("10000")
+            if order.side == "BUY":
+                price = price + slippage_amount  # 买入滑点使价格更高
+            else:
+                price = price - slippage_amount  # 卖出滑点使价格更低
+
         commission = self.commission_per_share * Decimal(order.quantity)
 
         if order.side == "BUY":

@@ -37,8 +37,9 @@ class BacktestConfig:
 
     # 滑点模型
     slippage_enabled: bool = True
-    slippage_type: str = "fixed"  # fixed / percent / adaptive
+    slippage_type: str = "fixed"  # fixed / percent / bps
     slippage_value: float = 0.001  # 0.1% for percent, $0.01 for fixed
+    slippage_bps: float = 0.0  # BPS滑点（1 BPS = 0.01%）
 
     # 策略配置
     strategy_name: str = "ma"
