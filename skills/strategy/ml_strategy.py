@@ -346,17 +346,35 @@ class LSTMModel(MLModel):
         if not self._has_tf:
             return
 
+        # 禁用 cuDNN 优化以兼容 CUDA 12.x
+        # 或者使用 CPU 训练
+        import tensorflow as tf
+
         model = self._Sequential([
-            self._LSTM(self.units, return_sequences=True, input_shape=input_shape),
+            self._LSTM(
+                self.units,
+                return_sequences=True,
+                input_shape=input_shape,
+                # 禁用 cuDNN 优化（不使用默认激活函数）
+                activation='sigmoid',  # 非 tanh 以禁用 cuDNN
+                recurrent_activation='hard_sigmoid',
+                use_bias=True,
+                unroll=False,  # 不展开循环
+            ),
             self._Dropout(0.2),
-            self._LSTM(self.units // 2),
+            self._LSTM(
+                self.units // 2,
+                return_sequences=False,
+                activation='sigmoid',
+                recurrent_activation='hard_sigmoid'
+            ),
             self._Dropout(0.2),
             self._Dense(32, activation='relu'),
-            self._Dense(3, activation='softmax')  # 3类: 涨、跌、平
+            self._Dense(3, activation='softmax')
         ])
 
         model.compile(
-            optimizer='adam',
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
