@@ -1,0 +1,159 @@
+{
+  "strategy_id": "unknown",
+  "run_id": "exp_1677b52a",
+  "commit_hash": "0232e5c9",
+  "config_hash": "cfg_1677b52a",
+  "generated_at": "2026-02-01T00:16:40.346277",
+  "windows": {
+    "20d": {
+      "stability_label": "Stable",
+      "risk_pattern_type": "structural",
+      "pattern_metrics": {
+        "avg_mdd": 0.021840408540636798,
+        "std_mdd": 0.003387190650702131,
+        "mdd_cv": 0.15508824591810366,
+        "pattern_similarity": 0.7533541170645652
+      },
+      "envelope": {
+        "strategy_id": "unknown",
+        "window_length": "20d",
+        "sample_size": 6,
+        "perturbation_types": [
+          "replay_order",
+          "cost_epsilon",
+          "cost_epsilon",
+          "capital_epsilon",
+          "capital_epsilon"
+        ],
+        "return_percentiles": {
+          "p50": -0.27237600000000006,
+          "p75": -0.2703534059405941,
+          "p90": -0.2696657239603961,
+          "p95": -0.26965898198019805,
+          "p99": -0.26965358839603965
+        },
+        "mdd_percentiles": {
+          "p50": 0.01925620129202769,
+          "p75": 0.019256201292027725,
+          "p90": 0.019353123861736606,
+          "p95": 0.019401585146591044,
+          "p99": 0.01944035417447459
+        },
+        "duration_percentiles": {
+          "p50": 4.0,
+          "p75": 4.0,
+          "p90": 4.0,
+          "p95": 4.0,
+          "p99": 4.0
+        },
+        "original_values": {
+          "return": -0.27237600000000006,
+          "mdd": 0.01925620129202769,
+          "duration": 4
+        },
+        "confidence_level": 0.95
+      },
+      "rules": [
+        {
+          "rule_id": "unknown_stability_gating",
+          "rule_name": "低稳定性暂停交易",
+          "rule_type": "gating",
+          "trigger_metric": "stability_score",
+          "trigger_threshold": 30.0,
+          "description": "策略稳定性评分 5.3/100 低于阈值30。策略在不同窗口下表现极不稳定，建议暂停使用。"
+        },
+        {
+          "rule_id": "unknown_return_reduction",
+          "rule_name": "极端亏损降仓",
+          "rule_type": "reduction",
+          "trigger_metric": "window_return",
+          "trigger_threshold": -0.1,
+          "description": "在20d窗口下，P95最坏收益为-26.97%。当窗口收益低于-10%时，建议将仓位降低50%。"
+        },
+        {
+          "rule_id": "unknown_regime_disable",
+          "rule_name": "结构性风险禁用",
+          "rule_type": "disable",
+          "trigger_metric": "market_regime",
+          "trigger_threshold": 0.0,
+          "description": "策略表现出结构性风险（形态相似度0.75）。Top-K最坏窗口高度相似，建议在震荡市场（ADX < 25）时禁用该策略。"
+        }
+      ]
+    },
+    "60d": {
+      "stability_label": "Stable",
+      "risk_pattern_type": "structural",
+      "pattern_metrics": {
+        "avg_mdd": 0.04825590742950424,
+        "std_mdd": 8.85719046188292e-05,
+        "mdd_cv": 0.0018354624197715382,
+        "pattern_similarity": 0.9521711779839052
+      },
+      "envelope": {
+        "strategy_id": "unknown",
+        "window_length": "60d",
+        "sample_size": 6,
+        "perturbation_types": [
+          "replay_order",
+          "cost_epsilon",
+          "cost_epsilon",
+          "capital_epsilon",
+          "capital_epsilon"
+        ],
+        "return_percentiles": {
+          "p50": 0.1899359999999999,
+          "p75": 0.19136051999999995,
+          "p90": 0.19184495272727264,
+          "p95": 0.19184974909090902,
+          "p99": 0.19185358618181808
+        },
+        "mdd_percentiles": {
+          "p50": 0.048164926795326635,
+          "p75": 0.0481649267953267,
+          "p90": 0.04840112449284857,
+          "p95": 0.04851922334160949,
+          "p99": 0.04861370242061823
+        },
+        "duration_percentiles": {
+          "p50": 38.0,
+          "p75": 38.0,
+          "p90": 38.0,
+          "p95": 38.0,
+          "p99": 38.0
+        },
+        "original_values": {
+          "return": 0.1899359999999999,
+          "mdd": 0.048164926795326635,
+          "duration": 38
+        },
+        "confidence_level": 0.95
+      },
+      "rules": [
+        {
+          "rule_id": "unknown_stability_gating",
+          "rule_name": "低稳定性暂停交易",
+          "rule_type": "gating",
+          "trigger_metric": "stability_score",
+          "trigger_threshold": 30.0,
+          "description": "策略稳定性评分 5.3/100 低于阈值30。策略在不同窗口下表现极不稳定，建议暂停使用。"
+        },
+        {
+          "rule_id": "unknown_regime_disable",
+          "rule_name": "结构性风险禁用",
+          "rule_type": "disable",
+          "trigger_metric": "market_regime",
+          "trigger_threshold": 0.0,
+          "description": "策略表现出结构性风险（形态相似度0.95）。Top-K最坏窗口高度相似，建议在震荡市场（ADX < 25）时禁用该策略。"
+        },
+        {
+          "rule_id": "unknown_duration_gating",
+          "rule_name": "持续回撤暂停",
+          "rule_type": "gating",
+          "trigger_metric": "drawdown_duration",
+          "trigger_threshold": 10.0,
+          "description": "在60d窗口下，P95回撤持续时间为38.0天。当回撤持续超过10天时，建议暂停交易。"
+        }
+      ]
+    }
+  }
+}

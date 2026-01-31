@@ -1,0 +1,112 @@
+{
+  "strategy_id": "unknown",
+  "run_id": "exp_4111f379",
+  "commit_hash": "fa690b4e",
+  "config_hash": "cfg_4111f379",
+  "generated_at": "2026-02-01T00:16:35.034583",
+  "windows": {
+    "20d": {
+      "stability_label": "Stable",
+      "risk_pattern_type": "structural",
+      "pattern_metrics": {
+        "avg_mdd": 0.0,
+        "std_mdd": 0.0,
+        "mdd_cv": 0,
+        "pattern_similarity": 1.0
+      },
+      "envelope": {
+        "strategy_id": "unknown",
+        "window_length": "20d",
+        "sample_size": 6,
+        "perturbation_types": [
+          "replay_order",
+          "cost_epsilon",
+          "cost_epsilon",
+          "capital_epsilon",
+          "capital_epsilon"
+        ],
+        "return_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "mdd_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "duration_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "original_values": {
+          "return": 0.0,
+          "mdd": 0.0,
+          "duration": 0
+        },
+        "confidence_level": 0.95
+      },
+      "rules": [
+        {
+          "rule_id": "unknown_regime_disable",
+          "rule_name": "结构性风险禁用",
+          "rule_type": "disable",
+          "trigger_metric": "market_regime",
+          "trigger_threshold": 0.0,
+          "description": "策略表现出结构性风险（形态相似度1.00）。Top-K最坏窗口高度相似，建议在震荡市场（ADX < 25）时禁用该策略。"
+        }
+      ]
+    },
+    "60d": {
+      "stability_label": "Unknown",
+      "risk_pattern_type": "single_outlier",
+      "pattern_metrics": {
+        "avg_mdd": NaN,
+        "std_mdd": NaN,
+        "mdd_cv": 0,
+        "pattern_similarity": 0
+      },
+      "envelope": {
+        "strategy_id": "unknown",
+        "window_length": "60d",
+        "sample_size": 1,
+        "perturbation_types": [],
+        "return_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "mdd_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "duration_percentiles": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "original_values": {
+          "return": 0.0,
+          "mdd": 0.0,
+          "duration": 0.0
+        },
+        "confidence_level": 0.95
+      },
+      "rules": []
+    }
+  }
+}
