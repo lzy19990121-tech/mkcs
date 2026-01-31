@@ -69,6 +69,17 @@ class TradingAgent:
         # 初始化风控管理器的资金
         self.risk_manager.set_capital(float(self.broker.initial_cash))
 
+        # SPL-4a: Runtime risk gate (optional)
+        self.risk_gate = None
+
+    def set_risk_gate(self, risk_gate):
+        """Set runtime risk gate for SPL-4a
+
+        Args:
+            risk_gate: RiskGate instance or None
+        """
+        self.risk_gate = risk_gate
+
     def tick(self, ctx: RunContext, symbols: List[str]) -> dict:
         """单次时间推进"""
         result = {
@@ -78,8 +89,49 @@ class TradingAgent:
             "orders_submitted": 0,
             "orders_filled": 0,
             "orders_rejected": 0,
-            "risk_rejects": []
+            "risk_rejects": [],
+            "gate_action": None  # SPL-4a: Track gate actions
         }
+
+        # SPL-4a: Check risk gate FIRST
+        if self.risk_gate:
+            from skills.risk.risk_gate import GateAction
+            gate_decision = self.risk_gate.check(
+                ctx,
+                self.broker.get_positions(),
+                float(self.broker.get_cash_balance())
+            )
+
+            # Store gate action in result
+            result["gate_action"] = gate_decision.to_dict()
+
+            # Log gate decision
+            self.event_logger.log_event(
+                ts=ctx.now,
+                symbol="PORTFOLIO",
+                stage="risk_gate",
+                payload={
+                    "action": gate_decision.action.value,
+                    "triggered_rules": gate_decision.triggered_rules,
+                    "reason": gate_decision.reason
+                },
+                reason=gate_decision.reason
+            )
+
+            # Handle gate actions
+            if gate_decision.action == GateAction.PAUSE_TRADING:
+                # Skip normal execution
+                result["gate_paused"] = True
+                return result
+            elif gate_decision.action == GateAction.DISABLE_STRATEGY:
+                # Skip normal execution and mark as disabled
+                result["gate_disabled"] = True
+                return result
+            elif gate_decision.action == GateAction.REDUCE_POSITION:
+                # Apply position reduction
+                # TODO: Implement position sizing adjustment
+                result["gate_reduction"] = gate_decision.position_reduction_ratio
+                # Continue with normal execution but with reduced sizes
 
         for symbol in symbols:
             result["symbols_processed"] += 1

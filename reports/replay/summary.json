@@ -1,13 +1,27 @@
 {
-  "start": "2024-01-08",
-  "end": "2024-01-08",
-  "interval": "1d",
+  "backtest_date": "2026-01-31T23:26:41.766788",
+  "replay_mode": "replay_mock",
+  "data_source": {
+    "type": "mock"
+  },
+  "data_hash": null,
+  "config": {},
+  "config_hash": "unknown",
+  "git_commit": "fa690b4e",
+  "date_range": {
+    "start": "2024-01-08",
+    "end": "2024-01-08",
+    "interval": "1d"
+  },
   "symbols": [
     "AAPL",
     "GOOGL"
   ],
-  "initial_cash": 100000.0,
-  "final_equity": 100000.0,
-  "total_pnl": 0.0,
-  "trade_count": 0
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 100000.0,
+    "total_return": 0.0,
+    "total_pnl": 0.0,
+    "trade_count": 0
+  }
 }

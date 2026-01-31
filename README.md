@@ -39,7 +39,14 @@ mkcs/
 │   ├── structural_analysis.py # 结构性风险分析 (SPL-3b)
 │   ├── risk_envelope.py       # 风险包络计算 (SPL-3b)
 │   ├── actionable_rules.py    # 可执行风控规则 (SPL-3b)
-│   └── deep_analysis_report.py # 深度分析报告生成 (SPL-3b)
+│   ├── deep_analysis_report.py # 深度分析报告生成 (SPL-3b)
+│   ├── risk_baseline.py       # 风险基线 (SPL-4c)
+│   ├── baseline_manager.py    # 基线管理 (SPL-4c)
+│   └── portfolio/             # 组合风险分析 (SPL-4b)
+│       ├── portfolio_builder.py    # 组合构建
+│       ├── portfolio_scanner.py    # 组合扫描
+│       ├── synergy_analyzer.py     # 协同风险分析
+│       └── portfolio_risk_report.py # 组合报告
 ├── runs/               # 实验运行目录
 │   └── <experiment_id>/
 │       ├── run_manifest.json
@@ -658,6 +665,101 @@ runs/deep_analysis_v3b/
 3. **策略选择**: 选择稳定性更好的策略
 4. **风险评估**: 评估最大潜在损失
 5. **可复现性审计**: 确保结果可完全复现
+
+## SPL-4 风险控制与组合加固系统
+
+### 概述
+
+SPL-4（Safety Protection Level-4）是完整的风险控制与组合加固系统，通过三个阶段保护策略和组合免受最坏情况影响。
+
+**执行流程**: C → A → B（回归测试 → 运行时风控 → 组合分析）
+
+```
+SPL-3b (深度分析)
+    ↓
+SPL-4c (回归测试) ← FREEZE 3b结论
+    ↓
+SPL-4a (运行时风控) ← 执行3b规则
+    ↓
+SPL-4b (组合分析) ← 分析4a合格策略
+```
+
+### SPL-4c: 风险回归测试
+
+冻结SPL-3b分析结果作为基线，运行5大回归测试防止风险退化。
+
+**核心功能**:
+- 基线冻结（`analysis/risk_baseline.py`, `analysis/baseline_manager.py`）
+- 5大回归测试（`tests/risk_regression/risk_baseline_test.py`）
+- CI集成（`.github/workflows/risk_regression.yml`）
+
+**使用方法**:
+```bash
+# 冻结基线
+PYTHONPATH=/home/neal/mkcs python -c "
+from analysis.baseline_manager import BaselineManager
+mgr = BaselineManager()
+snapshot = mgr.freeze_baselines('runs', 'baselines/risk')
+"
+
+# 运行回归测试
+PYTHONPATH=/home/neal/mkcs python tests/risk_regression/run_risk_regression.py
+```
+
+### SPL-4a: 运行时风险风控
+
+将SPL-3b规则转换为运行时可执行约束，实时保护策略。
+
+**核心功能**:
+- 实时指标计算（`skills/risk/runtime_metrics.py`）
+- 风险风控器（`skills/risk/risk_gate.py`）
+- Agent��成（`agent/runner.py`）
+
+**风控动作**:
+- `PAUSE_TRADING`: 暂停交易
+- `REDUCE_POSITION`: 减少50%仓位
+- `DISABLE_STRATEGY`: 禁用策略
+
+**使用方法**:
+```python
+from skills.risk.risk_gate import RiskGate
+gate = RiskGate(ruleset)
+agent.set_risk_gate(gate)
+agent.run_replay_backtest(...)
+```
+
+### SPL-4b: 组合协同风险分析
+
+分析多策略组合层面的最坏情况协同风险。
+
+**核心功能**:
+- 组合构建（`analysis/portfolio/portfolio_builder.py`）
+- 组合窗口扫描（`analysis/portfolio/portfolio_scanner.py`）
+- 协同风险分析（`analysis/portfolio/synergy_analyzer.py`）
+- 组合报告生成（`analysis/portfolio/portfolio_risk_report.py`）
+
+**风险类型**:
+- 相关性尖峰
+- 同时性尾部损失
+- 风险预算违规
+
+**使用方法**:
+```python
+from analysis.portfolio import PortfolioBuilder, SynergyAnalyzer
+
+builder = PortfolioBuilder()
+portfolio = builder.build_portfolio(config, 'runs')
+
+analyzer = SynergyAnalyzer()
+synergy_report = analyzer.generate_synergy_report(portfolio, worst_windows)
+```
+
+### 完整文档
+
+详细实现请参见：
+- **📘 SPL-4实现文档**: `SPL-4_IMPLEMENTATION.md`
+- **✅ SPL-4验收报告**: `SPL-4_ACCEPTANCE.md`
+- **📦 SPL-4交付文档**: `SPL-4_DELIVERY_SUMMARY.md`
 
 ## 实验资产化 (runs/ 目录)
 

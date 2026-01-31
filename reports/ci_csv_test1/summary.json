@@ -1,0 +1,52 @@
+{
+  "backtest_date": "2026-01-31T22:20:45.952982",
+  "replay_mode": "replay_real",
+  "data_source": {
+    "type": "csv",
+    "path": "data/aapl_2023.csv",
+    "seed": null
+  },
+  "data_hash": "sha256:48724fba7f560f93",
+  "config": {
+    "data_source": "csv",
+    "symbols": [
+      "AAPL"
+    ],
+    "start_date": "2023-01-01",
+    "end_date": "2023-01-31",
+    "commission": {
+      "type": "per_share",
+      "value": 0.01
+    },
+    "slippage": {
+      "enabled": true,
+      "type": "fixed",
+      "value": 0.001
+    },
+    "strategy": {
+      "name": "ma",
+      "params": {
+        "fast_period": 3,
+        "slow_period": 10
+      }
+    },
+    "risk": {}
+  },
+  "config_hash": "sha256:e393bf7c69f62d57",
+  "git_commit": "5ad6ee41",
+  "date_range": {
+    "start": "2023-01-01",
+    "end": "2023-01-31",
+    "interval": "1d"
+  },
+  "symbols": [
+    "AAPL"
+  ],
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 100000.0,
+    "total_return": 0.0,
+    "total_pnl": 0.0,
+    "trade_count": 0
+  }
+}

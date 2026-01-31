@@ -1,0 +1,67 @@
+name: Risk Regression Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  risk_regression:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Full history for commit hash
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt || true  # Continue if no requirements.txt
+        # Install essential packages
+        pip install pandas numpy
+
+    - name: Run Risk Regression Tests
+      run: |
+        python tests/risk_regression/run_risk_regression.py \
+          --replay-dir runs \
+          --baseline-dir baselines/risk \
+          --output-dir reports/risk_regression
+      continue-on-error: false
+
+    - name: Upload test report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: risk-regression-report
+        path: reports/risk_regression/
+        retention-days: 30
+
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const reportPath = 'reports/risk_regression/report.md';
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Risk Regression Test Results\n\n${report}`
+              });
+            }
+          } catch (error) {
+            console.log('Could not post comment:', error.message);
+          }

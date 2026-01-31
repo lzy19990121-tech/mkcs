@@ -1,0 +1,56 @@
+{
+  "backtest_date": "2026-01-31T22:58:06.161335",
+  "replay_mode": "replay_mock",
+  "data_source": {
+    "type": "mock",
+    "path": null,
+    "seed": 42
+  },
+  "data_hash": null,
+  "config": {
+    "data_source": "mock",
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "GOOGL"
+    ],
+    "start_date": "2024-01-01",
+    "end_date": "2024-06-30",
+    "commission": {
+      "type": "per_share",
+      "value": 0.01
+    },
+    "slippage": {
+      "enabled": true,
+      "type": "fixed",
+      "value": 0.001
+    },
+    "strategy": {
+      "name": "breakout_10",
+      "params": {
+        "period": 10,
+        "threshold": 0.01
+      }
+    },
+    "risk": {}
+  },
+  "config_hash": "sha256:c3318110e38cdc1c",
+  "git_commit": "0232e5c9",
+  "date_range": {
+    "start": "2024-01-01",
+    "end": "2024-06-30",
+    "interval": "1d"
+  },
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "GOOGL"
+  ],
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 97069.77,
+    "total_return": -0.0293023,
+    "total_pnl": -2930.23,
+    "trade_count": 10
+  }
+}
