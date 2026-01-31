@@ -229,7 +229,8 @@ class TradingAgent:
         interval: str = "1d",
         output_dir: str = "reports/replay",
         verbose: bool = True,
-        mode: ReplayMode = ReplayMode.MOCK
+        mode: ReplayMode = ReplayMode.MOCK,
+        use_manifest: bool = True
     ) -> List[dict]:
         """运行回放回测
 
@@ -241,6 +242,7 @@ class TradingAgent:
             output_dir: 输出目录
             verbose: 是否打印详细信息
             mode: 回放模式 (MOCK/REAL)
+            use_manifest: 是否使用 RunManifest 系统
 
         Returns:
             每日结果列表
@@ -250,6 +252,35 @@ class TradingAgent:
             start = start or datetime.strptime(self.config.start_date, "%Y-%m-%d").date()
             end = end or datetime.strptime(self.config.end_date, "%Y-%m-%d").date()
             symbols = symbols or self.config.symbols
+
+        # 使用 RunManifest 系统
+        if use_manifest and self.config:
+            from run_manifest import create_run_directory, generate_experiment_id
+            from utils.hash import get_git_commit, compute_config_hash, compute_data_hash
+
+            # 构建配置字典
+            config_dict = self.config.to_dict()
+            config_dict['mode'] = mode.value
+            git_commit = get_git_commit(short=True)
+
+            # 创建运行目录
+            run_dir, manifest = create_run_directory(
+                base_dir="runs",
+                config=config_dict,
+                git_commit=git_commit
+            )
+
+            # 使用实验ID目录作为输出目录
+            actual_output_dir = str(run_dir)
+            experiment_id = manifest.experiment_id
+
+            if verbose:
+                print(f"\n实验ID: {experiment_id}")
+                print(f"运行目录: {run_dir}")
+        else:
+            actual_output_dir = output_dir
+            experiment_id = None
+            manifest = None
 
         results = []
         market = TradingSession.get_market_type(symbols[0]) if symbols else 'US'
@@ -309,10 +340,31 @@ class TradingAgent:
         if verbose:
             self._print_summary()
 
+        # 写入输出文件
         self._write_replay_outputs(
-            output_dir, start, end, interval, symbols, equity_curve, risk_rejects,
+            actual_output_dir, start, end, interval, symbols, equity_curve, risk_rejects,
             mode=mode, engine_metadata=engine.get_metadata() if hasattr(engine, 'get_metadata') else {}
         )
+
+        # 更新 manifest
+        if manifest:
+            metrics = {
+                "initial_cash": float(self.broker.initial_cash),
+                "final_equity": float(self.broker.get_total_equity()),
+                "total_return": float(self.broker.get_total_pnl() / self.broker.initial_cash),
+                "total_pnl": float(self.broker.get_total_pnl()),
+                "trade_count": len(self.broker.get_trades())
+            }
+
+            artifacts = [
+                "summary.json",
+                "equity_curve.csv",
+                "trades.csv",
+                "risk_rejects.csv"
+            ]
+
+            manifest.mark_completed(metrics=metrics, artifacts=artifacts)
+            manifest.save(Path(actual_output_dir))
 
         return results
 
