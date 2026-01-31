@@ -5,7 +5,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from core.models import Bar, Signal, Position
 
@@ -17,7 +17,7 @@ class Strategy(ABC):
     def generate_signals(
         self,
         bars: List[Bar],
-        position: Position = None
+        position: Optional[Position] = None
     ) -> List[Signal]:
         """生成交易信号
 

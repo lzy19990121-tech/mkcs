@@ -7,6 +7,7 @@
 import os
 import sys
 import tempfile
+from pathlib import Path
 from datetime import date, datetime
 
 # 添加项目根目录到路径
@@ -37,12 +38,24 @@ def run_e2e_backtest():
         print("\n2. 运行回测 (2024-01-01 到 2024-01-31)...")
         symbols = ["AAPL", "GOOGL", "MSFT"]
 
-        results = agent.run_backtest(
+        results = agent.run_replay_backtest(
             start=date(2024, 1, 1),
             end=date(2024, 1, 31),
             symbols=symbols,
+            interval="1d",
             verbose=True
         )
+
+        # 2.1 校验回放输出文件
+        output_dir = Path("reports/replay")
+        required_outputs = [
+            output_dir / "summary.json",
+            output_dir / "equity_curve.csv",
+            output_dir / "trades.csv",
+            output_dir / "risk_rejects.csv"
+        ]
+        for path in required_outputs:
+            assert path.exists(), f"回放输出缺失: {path}"
 
         # 验证结果
         print("\n3. 验证数据一致性...")
@@ -91,7 +104,7 @@ def run_e2e_backtest():
         # 5. 性能统计
         print("\n5. 性能统计:")
         total_signals = sum(r.get('signals_generated', 0) for r in results)
-        total_executed = sum(r.get('orders_executed', 0) for r in results)
+        total_executed = sum(r.get('orders_filled', 0) for r in results)
         execution_rate = total_executed / total_signals * 100 if total_signals > 0 else 0
 
         print(f"   总信号数: {total_signals}")

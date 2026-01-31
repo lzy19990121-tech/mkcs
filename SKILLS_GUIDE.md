@@ -13,6 +13,7 @@
 - ✅ 核心组件API文档
 - ✅ 快速开始指南
 - ✅ 回测运行命令
+- ✅ 回放输出文件说明 (summary.json/equity_curve.csv/trades.csv/risk_rejects.csv)
 - ✅ 数据库集成方法
 - ✅ 模块测试方法
 - ✅ 扩展指南（新策略、新数据源、新风控规则）
@@ -28,6 +29,7 @@
 - 分析历史表现
 - 生成交易报告
 - 用历史数据验证策略
+- 生成回放产物文件
 
 **示例触发**:
 ```
@@ -130,10 +132,10 @@ Claude: [自动加载 trading-strategy-analyzer skill]
 
 ```bash
 # 复制.skill文件到Claude的skills目录
-cp /home/gushengdong/mkcs/*.skill ~/.claude/skills/
+cp /home/neal/mkcs/*.skill ~/.claude/skills/
 
 # 或者安装到全局skills目录
-sudo cp /home/gushengdong/mkcs/*.skill /opt/claude/skills/
+sudo cp /home/neal/mkcs/*.skill /opt/claude/skills/
 ```
 
 ### 方法2: 通过UI安装

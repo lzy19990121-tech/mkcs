@@ -2,11 +2,13 @@
 
 ## 📋 实现概述
 
-在现有自动交易系统基础上成功实现了3大核心功能：
+在现有自动交易系统基础上成功实现了以下核心功能：
 
 1. **事件日志系统** (events/)
-2. **日报生成器** (reports/)
+2. **日报/复盘生成器** (reports/)
 3. **TUI终端界面** (tui/)
+4. **回放回测与时间推进** (agent/)
+5. **订单撮合模型升级** (broker/)
 
 所有功能已集成到Agent Runner中，并完成全面测试。
 
@@ -34,7 +36,9 @@
 - data_fetch    # 数据获取
 - signal_gen    # 信号生成
 - risk_check    # 风控检查
-- order_exec    # 订单执行
+- order_submit  # 订单提交
+- order_fill    # 订单成交
+- order_reject  # 订单拒绝
 - system        # 系统级事件
 ```
 
@@ -62,7 +66,7 @@ events = logger.query_events(symbol="AAPL", stage="signal_gen")
 ```
 logs/
 ├── events_20240108.jsonl  # 2024年1月8日的事件
-├── events_20240109.jsonl  # 2024年1月9日的事��
+├── events_20240109.jsonl  # 2024年1月9日的事件
 └── ...
 ```
 
@@ -126,7 +130,7 @@ print(plan)
 
 **生成内容**:
 1. **交易摘要** - 信号数、风控通过/拒绝、成交数、执行率
-2. **执行回顾** - 成交明细表（时间、标的、方向、价格、数量）
+2. **执行回顾** - 提交/成交/拒绝统计与明细
 3. **信号质量** - 按类型统计、平均置信度、高置信度信号
 4. **盈亏分析** - 账户概况、持仓详情、浮盈浮亏
 5. **时间线** - 按小时分组的事件时间线
@@ -192,7 +196,7 @@ print(review)
 ║ │ MSFT     │ │ 持仓: 100股 @ $150.00                │       ║
 ║ └──────────┘ │ 浮盈: $500.00                        │       ║
 ║              ╰─────────────────────────────────────╯       ║
-║              ╭───────── 最新成交 ───────────────────╮       ║
+║              ╭───────── 最新订单事件 ────────────────╮       ║
 ║              │ 时间    标的   方向   价格   数量    │       ║
 ║              │ 09:37  AAPL   BUY   $150   100     │       ║
 ║              ╰─────────────────────────────────────╯       ║
@@ -210,7 +214,7 @@ print(review)
 - ✅ 观察列表（从config.yaml读取）
 - ✅ 键盘选择（↑↓导航）
 - ✅ 选中标的详情（最新信号、持仓、事件）
-- ✅ 最新成交表格
+- ✅ 最新订单事件表格
 - ✅ 风控状态监控
 - ✅ 实时更新
 
@@ -285,53 +289,44 @@ class TradingAgent:
         risk_manager,
         broker,
         db=None,
-        event_logger=None  # 新增
+        event_logger=None
     ):
         self.event_logger = event_logger or get_event_logger()
 
-    def run_one_day(self, trading_date, symbols):
+    def tick(self, ctx, symbols):
         for symbol in symbols:
             # 1. 数据获取
-            bars = self.data_source.get_bars(...)
-            self.event_logger.log_event(
-                ts=...,
-                symbol=symbol,
-                stage="data_fetch",
-                payload={"bars_count": len(bars)},
-                reason="获取K线数据"
-            )
+            bars = self.data_source.get_bars_until(...)
+            self.event_logger.log_event(..., stage="data_fetch", ...)
 
             # 2. 信号生成
             signals = self.strategy.generate_signals(bars, position)
-            self.event_logger.log_event(
-                ts=...,
-                symbol=symbol,
-                stage="signal_gen",
-                payload={...},
-                reason=signal.reason
-            )
+            self.event_logger.log_event(..., stage="signal_gen", ...)
 
             # 3. 风控检查
             intent = self.risk_manager.check(...)
-            self.event_logger.log_event(
-                ts=...,
-                symbol=symbol,
-                stage="risk_check",
-                payload={...},
-                reason=intent.risk_reason
-            )
+            self.event_logger.log_event(..., stage="risk_check", ...)
 
-            # 4. 订单执行
-            if intent.can_execute:
-                trade = self.broker.execute_order(intent)
-                self.event_logger.log_event(
-                    ts=...,
-                    symbol=symbol,
-                    stage="order_exec",
-                    payload={...},
-                    reason="订单执行成功"
-                )
+            # 4. 订单提交
+            order = self.broker.submit_order(intent)
+            self.event_logger.log_event(..., stage="order_submit", ...)
+
+            # 5. 撮合成交
+            fills, rejects = self.broker.on_bar(current_bar)
+            self.event_logger.log_event(..., stage="order_fill", ...)
+            self.event_logger.log_event(..., stage="order_reject", ...)
 ```
+
+---
+
+## 📁 回放输出文件
+
+回放结束会输出以下文件到指定目录（默认 `reports/replay`）：
+
+- `summary.json`
+- `equity_curve.csv`
+- `trades.csv`
+- `risk_rejects.csv`
 
 ---
 
@@ -370,8 +365,8 @@ class TradingAgent:
 # 1. 配置观察列表
 vim config.yaml
 
-# 2. 运行回测（自动记录事件）
-python -m agent.runner --start 2024-01-01 --end 2024-01-31 --db trading.db
+# 2. 运行回放（自动记录事件）
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --db trading.db --output-dir reports/replay
 
 # 3. 生成日计划
 python -c "
@@ -409,19 +404,24 @@ python -c "from tui.watchlist import run_simple_display; run_simple_display()"
 
 ```
 mkcs/
+├── core/
+│   └── context.py                      # RunContext
 ├── events/
 │   ├── __init__.py
 │   └── event_log.py                    # 事件日志系统
+├── agent/
+│   └── replay_engine.py                # 回放时间推进器
 ├── reports/
 │   ├── planner.py                     # 日计划生成器
 │   └── reviewer.py                    # 日复盘生成器
 ├── tui/
-���   ├── __init__.py
+│   ├── __init__.py
 │   └── watchlist.py                   # TUI观察列表
 ├── tests/
-│   └── test_new_features.py           # 新功能集成测试
+│   ├── test_new_features.py           # 新功能集成测试
+│   └── test_order_execution.py        # 撮合规则单测
 ├── config.yaml                         # 配置文件
-├── requirements.txt                    # 新增rich, pyyaml
+├── requirements.txt                    # 新增rich, textual
 └── logs/
     └── events_*.jsonl                 # 事件日志文件
 ```
@@ -433,13 +433,12 @@ mkcs/
 **requirements.txt** 新增:
 ```
 rich>=13.7.0         # TUI界面
-pyyaml>=6.0          # 配置文件
 textual>=0.47.0      # 高级TUI（可选）
 ```
 
 安装命令:
 ```bash
-pip install rich pyyaml
+pip install rich textual
 ```
 
 ---

@@ -11,7 +11,7 @@ TUI观察列表界面
 import yaml
 from pathlib import Path
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from rich.console import Console
 from rich.table import Table
@@ -240,14 +240,13 @@ class WatchlistTUI:
 
     def _render_orders(self) -> Panel:
         """渲染最新订单/成交"""
-        # 查询最近的订单执行事件
-        events = self.event_logger.query_events(
-            stage='order_exec'
-        )
-        events = events[-10:] if events else []
+        # 查询最近的订单事件
+        events = self.event_logger.query_events()
+        order_events = [e for e in events if e.get("stage") in ["order_submit", "order_fill", "order_reject"]]
+        order_events = order_events[-10:] if order_events else []
 
         table = Table(
-            title="最新成交",
+            title="最新订单事件",
             show_header=True,
             header_style="bold green",
             box=box.SIMPLE
@@ -255,14 +254,21 @@ class WatchlistTUI:
 
         table.add_column("时间", width=8)
         table.add_column("标的", width=8)
+        table.add_column("状态", width=10)
         table.add_column("方向", width=6)
         table.add_column("价格", width=8)
         table.add_column("数量", width=8)
 
-        for event in events:
+        for event in order_events:
             ts = datetime.fromisoformat(event['ts']).strftime('%H:%M:%S')
             symbol = event['symbol']
             payload = event['payload']
+            stage = event.get("stage", "N/A")
+            status = {
+                "order_submit": "SUBMIT",
+                "order_fill": "FILL",
+                "order_reject": "REJECT"
+            }.get(stage, "N/A")
             side = payload.get('side', 'N/A')
             price = payload.get('price', 0)
             quantity = payload.get('quantity', 0)
@@ -273,6 +279,7 @@ class WatchlistTUI:
             table.add_row(
                 ts,
                 symbol,
+                status,
                 Text(side, style=side_style),
                 f"${price:.2f}",
                 str(quantity)
@@ -433,14 +440,27 @@ def run_simple_display():
         risk_reason="OK"
     )
 
-    trade = broker.execute_order(intent)
+    order = broker.submit_order(intent)
+
+    from core.models import Bar
+    bar = Bar(
+        symbol="AAPL",
+        timestamp=datetime.now() + timedelta(days=1),
+        open=Decimal("150.00"),
+        high=Decimal("151.00"),
+        low=Decimal("149.00"),
+        close=Decimal("150.50"),
+        volume=100000,
+        interval="1d"
+    )
+    broker.on_bar(bar)
 
     # 记录事件
     logger = get_event_logger()
     logger.log_event(
         ts=datetime.now(),
         symbol="AAPL",
-        stage="order_exec",
+        stage="order_fill",
         payload={"side": "BUY", "price": 150.0, "quantity": 100},
         reason="订单执行成功"
     )

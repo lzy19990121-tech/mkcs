@@ -1,3 +1,15 @@
 {"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取AAPL历史K线数据"}
 {"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取GOOGL历史K线数据"}
 {"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取MSFT历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取AAPL历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取GOOGL历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "signal_gen", "payload": {"action": "BUY", "price": 134.2, "quantity": 100, "confidence": 0.52}, "reason": "金叉: 快速均线(5)上穿慢速均线(20)"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "risk_check", "payload": {"approved": true, "action": "BUY"}, "reason": "符合所有风控规则"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "order_exec", "payload": {"side": "BUY", "price": 134.2, "quantity": 100, "commission": 1.0}, "reason": "订单执行成功"}
+{"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 22, "interval": "1d"}, "reason": "获取MSFT历史K线数据"}
+{"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "GOOGL", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}
+{"ts": "2024-01-08T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 29, "interval": "1d"}, "reason": "fetch_bars_until 2024-01-08T09:30:00"}

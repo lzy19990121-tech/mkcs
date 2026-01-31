@@ -1,0 +1,14 @@
+{
+  "start": "2024-01-01",
+  "end": "2024-01-31",
+  "interval": "1d",
+  "symbols": [
+    "AAPL",
+    "GOOGL",
+    "MSFT"
+  ],
+  "initial_cash": 100000.0,
+  "final_equity": 100444.0,
+  "total_pnl": 444.0,
+  "trade_count": 3
+}

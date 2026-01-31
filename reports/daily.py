@@ -4,7 +4,7 @@
 生成每日交易汇总、持仓情况、盈亏分析和信号统计
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional
 import io
@@ -226,7 +226,7 @@ class BacktestReport:
         output.write("-" * 70 + "\n")
 
         total_signals = sum(r.get('signals_generated', 0) for r in self.results)
-        total_executed = sum(r.get('orders_executed', 0) for r in self.results)
+        total_executed = sum(r.get('orders_filled', 0) for r in self.results)
         total_rejected = sum(r.get('orders_rejected', 0) for r in self.results)
 
         output.write(f"总信号数:   {total_signals}\n")
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     broker = PaperBroker(initial_cash=100000)
 
     # 执行几笔交易
-    from core.models import Signal, OrderIntent
+    from core.models import Signal, OrderIntent, Bar
 
     # 买入AAPL
     signal1 = Signal(
@@ -302,7 +302,7 @@ if __name__ == "__main__":
         reason="金叉"
     )
     intent1 = OrderIntent(signal=signal1, timestamp=datetime.now(), approved=True, risk_reason="OK")
-    broker.execute_order(intent1)
+    order1 = broker.submit_order(intent1)
 
     # 买入GOOGL
     signal2 = Signal(
@@ -315,7 +315,32 @@ if __name__ == "__main__":
         reason="金叉"
     )
     intent2 = OrderIntent(signal=signal2, timestamp=datetime.now(), approved=True, risk_reason="OK")
-    broker.execute_order(intent2)
+    order2 = broker.submit_order(intent2)
+
+    # 撮合在下一根bar
+    bar = Bar(
+        symbol="AAPL",
+        timestamp=datetime.now() + timedelta(days=1),
+        open=Decimal("151.00"),
+        high=Decimal("152.00"),
+        low=Decimal("149.00"),
+        close=Decimal("151.50"),
+        volume=100000,
+        interval="1d"
+    )
+    broker.on_bar(bar)
+
+    bar = Bar(
+        symbol="GOOGL",
+        timestamp=datetime.now() + timedelta(days=1),
+        open=Decimal("141.00"),
+        high=Decimal("142.00"),
+        low=Decimal("139.00"),
+        close=Decimal("141.50"),
+        volume=100000,
+        interval="1d"
+    )
+    broker.on_bar(bar)
 
     # 更新价格
     broker.update_position_prices({

@@ -19,7 +19,7 @@ class Event:
     Attributes:
         ts: 时间戳
         symbol: 标的代码（None表示系统级事件）
-        stage: 阶段标识（data_fetch, signal_gen, risk_check, order_exec等）
+        stage: 阶段标识（data_fetch, signal_gen, risk_check, order_submit, order_fill, order_reject等）
         payload: 事件数据
         reason: 原因说明
     """
@@ -275,9 +275,9 @@ if __name__ == "__main__":
         Event(
             ts=datetime.now(),
             symbol="AAPL",
-            stage="order_exec",
+            stage="order_fill",
             payload={"trade_id": "T001", "side": "BUY", "quantity": 100},
-            reason="订单执行成功"
+            reason="订单成交"
         ),
         Event(
             ts=datetime.now(),

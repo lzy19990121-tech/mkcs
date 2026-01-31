@@ -36,6 +36,25 @@ class MarketDataSource(ABC):
         pass
 
     @abstractmethod
+    def get_bars_until(
+        self,
+        symbol: str,
+        end: datetime,
+        interval: str
+    ) -> List[Bar]:
+        """获取截至某个时间点的K线数据
+
+        Args:
+            symbol: 标的代码
+            end: 截止时间（包含该时间点）
+            interval: 时间周期（1m, 5m, 1h, 1d）
+
+        Returns:
+            K线数据列表，按时间升序排列
+        """
+        pass
+
+    @abstractmethod
     def get_quote(self, symbol: str) -> Quote:
         """获取实时报价
 

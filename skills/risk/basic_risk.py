@@ -6,7 +6,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Set
+from typing import Dict, Set, Optional
 
 from core.models import Signal, OrderIntent, Position
 from skills.risk.base import RiskManager
@@ -27,7 +27,7 @@ class BasicRiskManager(RiskManager):
         self,
         max_position_ratio: float = 0.2,  # 单只股票最大仓位占比
         max_positions: int = 10,  # 最大持仓数量
-        blacklist: Set[str] = None,  # 黑名单
+        blacklist: Optional[Set[str]] = None,  # 黑名单
         max_daily_loss_ratio: float = 0.05  # 单日最大亏损比例
     ):
         """初始化风控参数
@@ -83,7 +83,7 @@ class BasicRiskManager(RiskManager):
         if signal.action == 'HOLD':
             return OrderIntent(
                 signal=signal,
-                timestamp=datetime.now(),
+                timestamp=signal.timestamp,
                 approved=False,
                 risk_reason="HOLD信号无需执行"
             )
@@ -92,7 +92,7 @@ class BasicRiskManager(RiskManager):
         if signal.symbol in self.blacklist:
             return OrderIntent(
                 signal=signal,
-                timestamp=datetime.now(),
+                timestamp=signal.timestamp,
                 approved=False,
                 risk_reason=f"股票在黑名单中: {signal.symbol}"
             )
@@ -105,7 +105,7 @@ class BasicRiskManager(RiskManager):
             if required_amount > available_cash:
                 return OrderIntent(
                     signal=signal,
-                    timestamp=datetime.now(),
+                    timestamp=signal.timestamp,
                     approved=False,
                     risk_reason=f"资金不足: 需要 {required_amount}, 可用 {available_cash}"
                 )
@@ -115,7 +115,7 @@ class BasicRiskManager(RiskManager):
             if len(positions) >= self.max_positions:
                 return OrderIntent(
                     signal=signal,
-                    timestamp=datetime.now(),
+                    timestamp=signal.timestamp,
                     approved=False,
                     risk_reason=f"持仓数量已达上限: {len(positions)}/{self.max_positions}"
                 )
@@ -140,7 +140,7 @@ class BasicRiskManager(RiskManager):
             if position_ratio > self.max_position_ratio:
                 return OrderIntent(
                     signal=signal,
-                    timestamp=datetime.now(),
+                    timestamp=signal.timestamp,
                     approved=False,
                     risk_reason=f"单只股票仓位超限: {position_ratio:.2%} > {self.max_position_ratio:.2%}"
                 )
@@ -151,7 +151,7 @@ class BasicRiskManager(RiskManager):
             if loss_ratio < -self.max_daily_loss_ratio:
                 return OrderIntent(
                     signal=signal,
-                    timestamp=datetime.now(),
+                    timestamp=signal.timestamp,
                     approved=False,
                     risk_reason=f"单日亏损超限: {loss_ratio:.2%} < -{self.max_daily_loss_ratio:.2%}"
                 )
@@ -159,7 +159,7 @@ class BasicRiskManager(RiskManager):
         # 所有风控检查通过
         return OrderIntent(
             signal=signal,
-            timestamp=datetime.now(),
+            timestamp=signal.timestamp,
             approved=True,
             risk_reason="符合所有风控规则"
         )
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     risk_mgr = BasicRiskManager(
         max_position_ratio=0.2,
         max_positions=3,
-        blacklist=["PENNY.ST", "RISKY"],
+        blacklist={"PENNY.ST", "RISKY"},
         max_daily_loss_ratio=0.05
     )
     risk_mgr.set_capital(100000)  # 10万美元

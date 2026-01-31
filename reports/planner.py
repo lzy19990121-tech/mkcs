@@ -204,13 +204,13 @@ class DailyPlanner:
 
                 # 统计
                 signal_count = len([e for e in events if e.get('stage') == 'signal_gen'])
-                trade_count = len([e for e in events if e.get('stage') == 'order_exec'])
+                trade_count = len([e for e in events if e.get('stage') == 'order_fill'])
 
                 lines.append(f"- 信号数: {signal_count}\n")
                 lines.append(f"- 成交数: {trade_count}\n")
 
                 # 显示重要事件
-                important_events = [e for e in events if e.get('stage') in ['signal_gen', 'order_exec']]
+                important_events = [e for e in events if e.get('stage') in ['signal_gen', 'order_fill']]
                 if important_events:
                     lines.append(f"\n**主要事件**:\n")
                     for event in important_events[:5]:  # 最多显示5个

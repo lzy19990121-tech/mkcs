@@ -4,20 +4,42 @@
 实现虚拟账户的订单执行、持仓管理和资金管理
 """
 
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Literal
 from datetime import datetime
-import uuid
 
-from core.models import OrderIntent, Trade, Position, Signal
+from core.models import OrderIntent, Trade, Position
+from typing import cast
+
+
+@dataclass(frozen=True)
+class Order:
+    order_id: str
+    symbol: str
+    side: Literal["BUY", "SELL"]
+    quantity: int
+    submit_ts: datetime
+
+
+@dataclass(frozen=True)
+class OrderFill:
+    order: Order
+    trade: Trade
+
+
+@dataclass(frozen=True)
+class OrderReject:
+    order: Order
+    reason: str
 
 
 class PaperBroker:
     """模拟交易经纪商
 
     功能：
-    - ��护虚拟账户和资金
-    - 执行订单并生成成交记录
+        - 维护虚拟账户和资金
+        - 接受订单并在下一根bar撮合
     - 计算手续费
     - 更新持仓和资金
     """
@@ -41,80 +63,108 @@ class PaperBroker:
         self.positions: Dict[str, Position] = {}
 
         # 成交记录
-        self.trades: list[Trade] = []
+        self.trades: List[Trade] = []
 
-        # 交易计数器（用于生成trade_id）
+        # 订单计数器
+        self._order_counter = 0
         self._trade_counter = 0
 
-    def execute_order(self, intent: OrderIntent) -> Optional[Trade]:
-        """执行订单
+        # 挂单队列
+        self.pending_orders: Dict[str, List[Order]] = {}
 
-        Args:
-            intent: 订单意图
-
-        Returns:
-            成交记录，如果订单被拒绝则返回None
-        """
+    def submit_order(self, intent: OrderIntent) -> Optional[Order]:
+        """提交订单（市价单，在下一根bar成交）"""
         if not intent.can_execute:
             return None
 
         signal = intent.signal
-        symbol = signal.symbol
-        side = signal.action
-        price = signal.price
-        quantity = signal.quantity
+        if signal.action not in ["BUY", "SELL"]:
+            return None
 
-        # 计算手续费
-        commission = self.commission_per_share * Decimal(quantity)
+        order = Order(
+            order_id=self._generate_order_id(),
+            symbol=signal.symbol,
+            side=cast(Literal["BUY", "SELL"], signal.action),
+            quantity=signal.quantity,
+            submit_ts=intent.timestamp
+        )
 
-        if side == 'BUY':
-            return self._execute_buy(symbol, price, quantity, commission)
-        elif side == 'SELL':
-            return self._execute_sell(symbol, price, quantity, commission)
+        self.pending_orders.setdefault(order.symbol, []).append(order)
+        return order
+
+    def on_bar(self, bar) -> tuple[List[OrderFill], List[OrderReject]]:
+        """撮合挂单：仅允许在下一根bar成交"""
+        fills: List[OrderFill] = []
+        rejects: List[OrderReject] = []
+
+        symbol = bar.symbol
+        if symbol not in self.pending_orders:
+            return fills, rejects
+
+        remaining_orders: List[Order] = []
+        for order in self.pending_orders[symbol]:
+            if order.submit_ts >= bar.timestamp:
+                remaining_orders.append(order)
+                continue
+
+            trade, reject_reason = self._fill_order(order, bar)
+            if trade:
+                fills.append(OrderFill(order=order, trade=trade))
+            else:
+                rejects.append(OrderReject(order=order, reason=reject_reason))
+
+        if remaining_orders:
+            self.pending_orders[symbol] = remaining_orders
         else:
-            return None
+            del self.pending_orders[symbol]
 
-    def _execute_buy(
-        self,
-        symbol: str,
-        price: Decimal,
-        quantity: int,
-        commission: Decimal
-    ) -> Optional[Trade]:
-        """执行买入订单
+        return fills, rejects
 
-        Args:
-            symbol: 标的代码
-            price: 买入价格
-            quantity: 买入数量
-            commission: 手续费
+    def _fill_order(self, order: Order, bar) -> tuple[Optional[Trade], str]:
+        price = bar.open
+        commission = self.commission_per_share * Decimal(order.quantity)
 
-        Returns:
-            成交记录
-        """
-        # 计算所需资金
-        required_amount = price * quantity + commission
+        if order.side == "BUY":
+            required_amount = price * order.quantity + commission
+            if required_amount > self.cash:
+                return None, "insufficient_cash"
 
-        # 检查资金是否充足
-        if required_amount > self.cash:
-            return None
+            self.cash -= required_amount
+            self._update_position_buy(order.symbol, price, order.quantity)
+        else:
+            if order.symbol not in self.positions:
+                return None, "no_position"
+            current_pos = self.positions[order.symbol]
+            if current_pos.quantity < order.quantity:
+                return None, "insufficient_position"
 
-        # 更新现金
-        self.cash -= required_amount
+            sell_amount = price * order.quantity - commission
+            self.cash += sell_amount
+            self._update_position_sell(order.symbol, price, order.quantity)
 
-        # 更新持仓
+        trade = Trade(
+            trade_id=self._generate_trade_id(bar.timestamp),
+            symbol=order.symbol,
+            side=order.side,
+            price=price,
+            quantity=order.quantity,
+            timestamp=bar.timestamp,
+            commission=commission
+        )
+
+        self.trades.append(trade)
+        return trade, ""
+
+    def _update_position_buy(self, symbol: str, price: Decimal, quantity: int):
         if symbol in self.positions:
-            # 已有持仓，计算新的平均成本
             old_pos = self.positions[symbol]
             old_quantity = old_pos.quantity
             old_avg_price = old_pos.avg_price
 
-            # 计算新的平均成本价
             total_cost = (old_avg_price * old_quantity + price * quantity)
             new_quantity = old_quantity + quantity
             new_avg_price = total_cost / new_quantity
 
-            # 创建新的持仓对象
             market_value = new_quantity * price
             unrealized_pnl = (price - new_avg_price) * new_quantity
 
@@ -126,75 +176,22 @@ class PaperBroker:
                 unrealized_pnl=unrealized_pnl.quantize(Decimal("0.01"))
             )
         else:
-            # 新建持仓
             market_value = price * quantity
-            unrealized_pnl = Decimal("0.00")
-
             self.positions[symbol] = Position(
                 symbol=symbol,
                 quantity=quantity,
                 avg_price=price,
                 market_value=market_value.quantize(Decimal("0.01")),
-                unrealized_pnl=unrealized_pnl
+                unrealized_pnl=Decimal("0.00")
             )
 
-        # 创建成交记录
-        trade = Trade(
-            trade_id=self._generate_trade_id(),
-            symbol=symbol,
-            side="BUY",
-            price=price,
-            quantity=quantity,
-            timestamp=datetime.now(),
-            commission=commission
-        )
-
-        self.trades.append(trade)
-        return trade
-
-    def _execute_sell(
-        self,
-        symbol: str,
-        price: Decimal,
-        quantity: int,
-        commission: Decimal
-    ) -> Optional[Trade]:
-        """执行卖出订单
-
-        Args:
-            symbol: 标的代码
-            price: 卖出价格
-            quantity: 卖出数量
-            commission: 手续费
-
-        Returns:
-            成交记录
-        """
-        # 检查持仓是否充足
-        if symbol not in self.positions:
-            return None
-
+    def _update_position_sell(self, symbol: str, price: Decimal, quantity: int):
         current_pos = self.positions[symbol]
-        if current_pos.quantity < quantity:
-            return None
-
-        # 计算卖出金额
-        sell_amount = price * quantity - commission
-
-        # 更新现金
-        self.cash += sell_amount
-
-        # 计算已实现盈亏
-        realized_pnl = (price - current_pos.avg_price) * quantity
-
-        # 更新持仓
         new_quantity = current_pos.quantity - quantity
 
         if new_quantity == 0:
-            # 全部卖出，删除持仓
             del self.positions[symbol]
         else:
-            # 部分卖出，更新持仓
             market_value = new_quantity * price
             unrealized_pnl = (price - current_pos.avg_price) * new_quantity
 
@@ -205,20 +202,6 @@ class PaperBroker:
                 market_value=market_value.quantize(Decimal("0.01")),
                 unrealized_pnl=unrealized_pnl.quantize(Decimal("0.01"))
             )
-
-        # 创建成交记录
-        trade = Trade(
-            trade_id=self._generate_trade_id(),
-            symbol=symbol,
-            side="SELL",
-            price=price,
-            quantity=quantity,
-            timestamp=datetime.now(),
-            commission=commission
-        )
-
-        self.trades.append(trade)
-        return trade
 
     def get_positions(self) -> Dict[str, Position]:
         """获取当前所有持仓
@@ -280,6 +263,8 @@ class PaperBroker:
         self.cash = self.initial_cash
         self.positions.clear()
         self.trades.clear()
+        self.pending_orders.clear()
+        self._order_counter = 0
         self._trade_counter = 0
 
     def update_position_prices(self, prices: Dict[str, Decimal]):
@@ -302,170 +287,60 @@ class PaperBroker:
                     unrealized_pnl=unrealized_pnl.quantize(Decimal("0.01"))
                 )
 
-    def _generate_trade_id(self) -> str:
-        """生成交易ID
+    def _generate_order_id(self) -> str:
+        self._order_counter += 1
+        return f"O{self._order_counter:06d}"
 
-        Returns:
-            交易ID
-        """
+    def _generate_trade_id(self, ts: datetime) -> str:
         self._trade_counter += 1
-        return f"T{datetime.now().strftime('%Y%m%d')}{self._trade_counter:06d}"
+        return f"T{ts.strftime('%Y%m%d')}{self._trade_counter:06d}"
 
 
 if __name__ == "__main__":
     """自测代码"""
     from decimal import Decimal
+    from core.models import Signal
 
-    print("=== PaperBroker 测试 ===\n")
+    print("=== PaperBroker 简单测试 ===\n")
 
-    # 创建模拟账户
     broker = PaperBroker(initial_cash=100000, commission_per_share=0.01)
 
-    print("1. 初始账户状态:")
-    print(f"   现金: ${broker.get_cash_balance():,.2f}")
-    print(f"   总权益: ${broker.get_total_equity():,.2f}")
-    print(f"   持仓数: {len(broker.get_positions())}")
-
-    # 测试买入
-    print("\n2. 执行买入订单:")
-    buy_signal = Signal(
+    signal = Signal(
         symbol="AAPL",
-        timestamp=datetime.now(),
+        timestamp=datetime(2024, 1, 2, 9, 30),
         action="BUY",
         price=Decimal("150.00"),
         quantity=100,
         confidence=0.8,
-        reason="金叉买入"
-    )
-    buy_intent = OrderIntent(
-        signal=buy_signal,
-        timestamp=datetime.now(),
-        approved=True,
-        risk_reason="符合风控"
-    )
-
-    trade1 = broker.execute_order(buy_intent)
-    if trade1:
-        print(f"   ✓ 成交: {trade1.side} {trade1.quantity} {trade1.symbol} @ ${trade1.price}")
-        print(f"   手续费: ${trade1.commission}")
-        print(f"   成交金额: ${trade1.notional_value}")
-
-    print("\n   买入后账户状态:")
-    print(f"   现金: ${broker.get_cash_balance():,.2f}")
-    print(f"   总权益: ${broker.get_total_equity():,.2f}")
-
-    # 查看持仓
-    aapl_pos = broker.get_position("AAPL")
-    if aapl_pos:
-        print(f"   AAPL持仓: {aapl_pos.quantity}股, 成本 ${aapl_pos.avg_price}")
-
-    # 测试继续买入同一股票
-    print("\n3. 继续买入同一股票:")
-    buy_signal2 = Signal(
-        symbol="AAPL",
-        timestamp=datetime.now(),
-        action="BUY",
-        price=Decimal("155.00"),
-        quantity=50,
-        confidence=0.8,
-        reason="加仓"
-    )
-    buy_intent2 = OrderIntent(
-        signal=buy_signal2,
-        timestamp=datetime.now(),
-        approved=True,
-        risk_reason="符合风控"
-    )
-
-    trade2 = broker.execute_order(buy_intent2)
-    if trade2:
-        print(f"   ✓ 成交: {trade2.side} {trade2.quantity} {trade2.symbol} @ ${trade2.price}")
-
-    aapl_pos = broker.get_position("AAPL")
-    if aapl_pos:
-        print(f"   AAPL持仓: {aapl_pos.quantity}股, 平均成本 ${aapl_pos.avg_price}")
-        print(f"   市值: ${aapl_pos.market_value}")
-
-    # 测试买入其他股票
-    print("\n4. 买入其他股票:")
-    googl_signal = Signal(
-        symbol="GOOGL",
-        timestamp=datetime.now(),
-        action="BUY",
-        price=Decimal("140.00"),
-        quantity=50,
-        confidence=0.8,
         reason="测试"
     )
-    googl_intent = OrderIntent(
-        signal=googl_signal,
-        timestamp=datetime.now(),
-        approved=True,
-        risk_reason="符合风控"
-    )
+    intent = OrderIntent(signal=signal, timestamp=signal.timestamp, approved=True, risk_reason="OK")
+    order = broker.submit_order(intent)
 
-    trade3 = broker.execute_order(googl_intent)
-    if trade3:
-        print(f"   ✓ 成交: {trade3.side} {trade3.quantity} {trade3.symbol} @ ${trade3.price}")
+    from core.models import Bar
 
-    print(f"   持仓数量: {len(broker.get_positions())}")
-    print(f"   总权益: ${broker.get_total_equity():,.2f}")
-
-    # 测试部分卖出
-    print("\n5. 部分卖出AAPL:")
-    sell_signal = Signal(
+    bar_t0 = Bar(
         symbol="AAPL",
-        timestamp=datetime.now(),
-        action="SELL",
-        price=Decimal("160.00"),
-        quantity=75,
-        confidence=0.8,
-        reason="减仓"
+        timestamp=datetime(2024, 1, 2, 9, 30),
+        open=Decimal("150.00"),
+        high=Decimal("151.00"),
+        low=Decimal("149.00"),
+        close=Decimal("150.50"),
+        volume=100000,
+        interval="1d"
     )
-    sell_intent = OrderIntent(
-        signal=sell_signal,
-        timestamp=datetime.now(),
-        approved=True,
-        risk_reason="符合风控"
+    fills, rejects = broker.on_bar(bar_t0)
+    print(f"同bar撮合: fills={len(fills)}, rejects={len(rejects)}")
+
+    bar_t1 = Bar(
+        symbol="AAPL",
+        timestamp=datetime(2024, 1, 3, 9, 30),
+        open=Decimal("151.00"),
+        high=Decimal("152.00"),
+        low=Decimal("150.00"),
+        close=Decimal("151.50"),
+        volume=100000,
+        interval="1d"
     )
-
-    trade4 = broker.execute_order(sell_intent)
-    if trade4:
-        print(f"   ✓ 成交: {trade4.side} {trade4.quantity} {trade4.symbol} @ ${trade4.price}")
-
-    aapl_pos = broker.get_position("AAPL")
-    if aapl_pos:
-        print(f"   AAPL剩余持仓: {aapl_pos.quantity}股")
-    else:
-        print(f"   AAPL持仓已清空")
-
-    print(f"   现金: ${broker.get_cash_balance():,.2f}")
-
-    # 测试价格更新
-    print("\n6. 更新持仓价格:")
-    broker.update_position_prices({
-        "AAPL": Decimal("165.00"),
-        "GOOGL": Decimal("145.00")
-    })
-
-    for symbol, pos in broker.get_positions().items():
-        print(f"   {symbol}: {pos.quantity}股, 市值 ${pos.market_value}, 浮盈 ${pos.unrealized_pnl}")
-
-    print(f"   总权益: ${broker.get_total_equity():,.2f}")
-    print(f"   总盈亏: ${broker.get_total_pnl():,.2f} ({broker.get_total_pnl()/broker.initial_cash*100:.2f}%)")
-
-    # 测试成交记录
-    print("\n7. 成交记录:")
-    all_trades = broker.get_trades()
-    print(f"   总成交次数: {len(all_trades)}")
-    for trade in all_trades:
-        print(f"   {trade.trade_id}: {trade.side} {trade.quantity} {trade.symbol} @ ${trade.price}")
-
-    # 测试重置
-    print("\n8. 重置账户:")
-    broker.reset()
-    print(f"   现金: ${broker.get_cash_balance():,.2f}")
-    print(f"   持仓数: {len(broker.get_positions())}")
-    print(f"   成交记录: {len(broker.get_trades())}")
-
-    print("\n✓ 所有测试通过")
+    fills, rejects = broker.on_bar(bar_t1)
+    print(f"下一根bar撮合: fills={len(fills)}, rejects={len(rejects)}")

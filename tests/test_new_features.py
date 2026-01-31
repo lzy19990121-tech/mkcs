@@ -11,7 +11,7 @@
 import os
 import sys
 import shutil
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -115,7 +115,7 @@ def test_daily_reviewer():
         Event(
             ts=datetime.now(),
             symbol="AAPL",
-            stage="order_exec",
+            stage="order_fill",
             payload={"side": "BUY", "price": 150.0, "quantity": 100},
             reason="订单执行"
         ),
@@ -167,7 +167,19 @@ def test_tui():
         risk_reason="OK"
     )
 
-    broker.execute_order(intent)
+    broker.submit_order(intent)
+    from core.models import Bar
+    bar = Bar(
+        symbol="AAPL",
+        timestamp=datetime.now() + timedelta(days=1),
+        open=Decimal("150.00"),
+        high=Decimal("151.00"),
+        low=Decimal("149.00"),
+        close=Decimal("150.50"),
+        volume=100000,
+        interval="1d"
+    )
+    broker.on_bar(bar)
 
     tui.set_broker(broker)
 
@@ -193,10 +205,11 @@ def test_agent_integration():
     agent = create_default_agent(initial_cash=100000, log_dir="test_logs")
 
     # 运行回测
-    results = agent.run_backtest(
+    results = agent.run_replay_backtest(
         start=date(2024, 1, 8),
         end=date(2024, 1, 8),
         symbols=["AAPL", "GOOGL"],
+        interval="1d",
         verbose=False
     )
 

@@ -6,6 +6,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict
+from typing import Optional
 
 from core.models import Signal, OrderIntent, Position
 
@@ -30,4 +31,14 @@ class RiskManager(ABC):
         Returns:
             订单意图（包含风控结果）
         """
+        pass
+
+    @abstractmethod
+    def set_capital(self, initial_capital: float):
+        """设置初始资金"""
+        pass
+
+    @abstractmethod
+    def update_daily_pnl(self, pnl):
+        """更新当日盈亏"""
         pass

@@ -87,6 +87,11 @@ LLM（你）：只参与
 跑通一条完整闭环：
 Market Data → Strategy → Risk → Paper Broker → Trade Log → Daily Report
 
+新增约束（当前架构）：
+- 使用回放引擎推进时间（ReplayEngine + RunContext）
+- 订单必须通过 submit_order / on_bar 撮合，禁止同bar成交
+- 事件阶段需包含 order_submit / order_fill / order_reject
+
 哪怕策略很弱，只要流程完整即可。
 
 📝 输出要求

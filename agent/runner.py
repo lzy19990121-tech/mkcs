@@ -9,8 +9,12 @@ from decimal import Decimal
 from typing import List, Optional, Dict
 import sys
 import argparse
+import csv
+import json
+from pathlib import Path
 
-from core.models import Bar, Position, OrderIntent, Signal
+from core.context import RunContext
+from core.models import Position, OrderIntent, Signal
 from skills.market_data.mock_source import MarketDataSource, MockMarketSource
 from skills.strategy.base import Strategy
 from skills.strategy.moving_average import MAStrategy
@@ -19,6 +23,7 @@ from skills.session.trading_session import TradingSession
 from broker.paper import PaperBroker
 from storage.db import TradeDB
 from events.event_log import EventLogger, get_event_logger
+from agent.replay_engine import ReplayEngine
 
 
 class TradingAgent:
@@ -59,73 +64,44 @@ class TradingAgent:
         # 初始化风控管理器的资金
         self.risk_manager.set_capital(float(self.broker.initial_cash))
 
-    def run_one_day(self, trading_date: date, symbols: List[str]) -> dict:
-        """运行单个交易日
-
-        Args:
-            trading_date: 交易日期
-            symbols: 需要交易的标的列表
-
-        Returns:
-            当日执行结果统计
-        """
+    def tick(self, ctx: RunContext, symbols: List[str]) -> dict:
+        """单次时间推进"""
         result = {
-            "date": trading_date,
+            "date": ctx.trading_date,
             "symbols_processed": 0,
             "signals_generated": 0,
-            "orders_executed": 0,
-            "orders_rejected": 0
+            "orders_submitted": 0,
+            "orders_filled": 0,
+            "orders_rejected": 0,
+            "risk_rejects": []
         }
 
-        # 检查是否为交易日
-        market = TradingSession.get_market_type(symbols[0]) if symbols else 'US'
-        if not TradingSession.is_trading_day(trading_date, market):
-            return result
-
-        # 获取当日市场时段
-        sessions = TradingSession.get_trading_sessions(trading_date, market)
-        if not sessions:
-            return result
-
-        # 为每个标的执行交易逻辑
         for symbol in symbols:
             result["symbols_processed"] += 1
 
-            # 1. 获取历史数据
-            start_date = trading_date - timedelta(days=self.strategy.get_min_bars_required() + 10)
-            end_time = datetime.combine(trading_date, sessions[0][0].time())
-
-            bars = self.data_source.get_bars(
-                symbol,
-                datetime.combine(start_date, datetime.min.time()),
-                end_time,
-                "1d"
-            )
+            bars = self.data_source.get_bars_until(symbol, ctx.now, ctx.bar_interval)
+            start_dt = ctx.now - timedelta(days=self.strategy.get_min_bars_required() + 10)
+            bars = [b for b in bars if b.timestamp >= start_dt]
 
             if len(bars) < self.strategy.get_min_bars_required():
                 continue
 
-            # 记录数据获取事件
             self.event_logger.log_event(
-                ts=datetime.combine(trading_date, sessions[0][0].time()),
+                ts=ctx.now,
                 symbol=symbol,
                 stage="data_fetch",
-                payload={"bars_count": len(bars), "interval": "1d"},
-                reason=f"获取{symbol}历史K线数据"
+                payload={"bars_count": len(bars), "interval": ctx.bar_interval},
+                reason=f"fetch_bars_until {ctx.now.isoformat()}"
             )
 
-            # 2. 获取当前持仓
             position = self.broker.get_position(symbol)
-
-            # 3. 策略生成信号
             signals = self.strategy.generate_signals(bars, position)
 
             for signal in signals:
                 result["signals_generated"] += 1
 
-                # 记录信号生成事件
                 self.event_logger.log_event(
-                    ts=datetime.combine(trading_date, sessions[0][0].time()),
+                    ts=ctx.now,
                     symbol=symbol,
                     stage="signal_gen",
                     payload={
@@ -137,16 +113,14 @@ class TradingAgent:
                     reason=signal.reason
                 )
 
-                # 4. 风控检查
                 intent = self.risk_manager.check(
                     signal,
                     self.broker.get_positions(),
                     float(self.broker.get_cash_balance())
                 )
 
-                # 记录风控检查事件
                 self.event_logger.log_event(
-                    ts=datetime.combine(trading_date, sessions[0][0].time()),
+                    ts=ctx.now,
                     symbol=symbol,
                     stage="risk_check",
                     payload={
@@ -156,61 +130,159 @@ class TradingAgent:
                     reason=intent.risk_reason
                 )
 
-                # 5. 执行交易
-                if intent.can_execute:
-                    trade = self.broker.execute_order(intent)
-                    if trade:
-                        result["orders_executed"] += 1
+                if not intent.approved:
+                    result["orders_rejected"] += 1
+                    result["risk_rejects"].append({
+                        "date": ctx.trading_date,
+                        "symbol": symbol,
+                        "action": intent.signal.action,
+                        "reason": intent.risk_reason
+                    })
+                    self.event_logger.log_event(
+                        ts=ctx.now,
+                        symbol=symbol,
+                        stage="order_reject",
+                        payload={
+                            "action": intent.signal.action,
+                            "quantity": intent.signal.quantity
+                        },
+                        reason=intent.risk_reason
+                    )
+                    continue
 
-                        # 记录订单执行事件
-                        self.event_logger.log_event(
-                            ts=datetime.combine(trading_date, sessions[0][0].time()),
-                            symbol=symbol,
-                            stage="order_exec",
-                            payload={
-                                "side": trade.side,
-                                "price": float(trade.price),
-                                "quantity": trade.quantity,
-                                "commission": float(trade.commission)
-                            },
-                            reason="订单执行成功"
-                        )
-
-                        if self.db:
-                            self.db.save_trade(trade)
-                    else:
-                        result["orders_rejected"] += 1
+                order = self.broker.submit_order(intent)
+                if order:
+                    result["orders_submitted"] += 1
+                    self.event_logger.log_event(
+                        ts=ctx.now,
+                        symbol=symbol,
+                        stage="order_submit",
+                        payload={
+                            "order_id": order.order_id,
+                            "side": order.side,
+                            "quantity": order.quantity
+                        },
+                        reason="submit_market_order"
+                    )
                 else:
                     result["orders_rejected"] += 1
+                    self.event_logger.log_event(
+                        ts=ctx.now,
+                        symbol=symbol,
+                        stage="order_reject",
+                        payload={
+                            "action": intent.signal.action,
+                            "quantity": intent.signal.quantity
+                        },
+                        reason="submit_failed"
+                    )
 
-        # 6. 更新持仓价格（使用收盘价）
-        closing_prices = {}
-        for symbol in symbols:
-            try:
-                bars = self.data_source.get_bars(
-                    symbol,
-                    datetime.combine(trading_date, datetime.min.time()),
-                    datetime.combine(trading_date, datetime.max.time()),
-                    "1d"
+            current_bar = bars[-1]
+            fills, rejects = self.broker.on_bar(current_bar)
+
+            for fill in fills:
+                trade = fill.trade
+                result["orders_filled"] += 1
+                self.event_logger.log_event(
+                    ts=trade.timestamp,
+                    symbol=trade.symbol,
+                    stage="order_fill",
+                    payload={
+                        "order_id": fill.order.order_id,
+                        "trade_id": trade.trade_id,
+                        "side": trade.side,
+                        "price": float(trade.price),
+                        "quantity": trade.quantity,
+                        "commission": float(trade.commission)
+                    },
+                    reason="filled_on_next_bar_open"
                 )
-                if bars:
-                    closing_prices[symbol] = bars[-1].close
-            except:
-                pass
+                if self.db:
+                    self.db.save_trade(trade)
 
-        if closing_prices:
-            self.broker.update_position_prices(closing_prices)
-
-        # 7. 保存持仓快照
-        if self.db:
-            for position in self.broker.get_positions().values():
-                self.db.save_position(position, trading_date)
-
-        # 更新当日盈亏
-        daily_pnl = self.broker.get_total_pnl()
-        self.risk_manager.update_daily_pnl(daily_pnl)
+            for reject in rejects:
+                result["orders_rejected"] += 1
+                self.event_logger.log_event(
+                    ts=ctx.now,
+                    symbol=reject.order.symbol,
+                    stage="order_reject",
+                    payload={
+                        "order_id": reject.order.order_id,
+                        "side": reject.order.side,
+                        "quantity": reject.order.quantity
+                    },
+                    reason=reject.reason
+                )
 
         return result
+
+    def run_replay_backtest(
+        self,
+        start: date,
+        end: date,
+        symbols: List[str],
+        interval: str,
+        output_dir: str = "reports/replay",
+        verbose: bool = True
+    ) -> List[dict]:
+        """运行回放回测"""
+        results = []
+        market = TradingSession.get_market_type(symbols[0]) if symbols else 'US'
+        engine = ReplayEngine(start=start, end=end, interval=interval, market=market)
+
+        equity_curve = []
+        risk_rejects = []
+
+        if verbose:
+            trading_days = TradingSession.get_trading_days(start, end, market)
+            print(f"\n开始回放: {start} 到 {end}")
+            print(f"交易标的: {', '.join(symbols)}")
+            print(f"交易日数量: {len(trading_days)}")
+            print(f"初始资金: ${self.broker.get_cash_balance():,.2f}\n")
+
+        for i, point in enumerate(engine.iter_days(), 1):
+            ctx = point.ctx
+            daily_result = self.tick(ctx, symbols)
+            results.append(daily_result)
+            risk_rejects.extend(daily_result["risk_rejects"])
+
+            closing_prices = {}
+            close_dt = point.sessions[-1][1]
+            for symbol in symbols:
+                bars = self.data_source.get_bars_until(symbol, close_dt, interval)
+                if bars:
+                    closing_prices[symbol] = bars[-1].close
+
+            if closing_prices:
+                self.broker.update_position_prices(closing_prices)
+
+            if self.db:
+                for position in self.broker.get_positions().values():
+                    self.db.save_position(position, ctx.trading_date)
+
+            daily_pnl = self.broker.get_total_pnl()
+            self.risk_manager.update_daily_pnl(daily_pnl)
+
+            equity_curve.append({
+                "date": ctx.trading_date,
+                "cash": self.broker.get_cash_balance(),
+                "equity": self.broker.get_total_equity(),
+                "pnl": self.broker.get_total_pnl()
+            })
+
+            if verbose and daily_result["signals_generated"] > 0:
+                print(f"[{i}] {ctx.trading_date}: "
+                      f"信号={daily_result['signals_generated']}, "
+                      f"提交={daily_result['orders_submitted']}, "
+                      f"成交={daily_result['orders_filled']}, "
+                      f"拒绝={daily_result['orders_rejected']}")
+
+        if verbose:
+            self._print_summary()
+
+        self._write_replay_outputs(output_dir, start, end, interval, symbols, equity_curve, risk_rejects)
+
+        return results
 
     def run_backtest(
         self,
@@ -219,50 +291,98 @@ class TradingAgent:
         symbols: List[str],
         verbose: bool = True
     ) -> List[dict]:
-        """运行回测
-
-        Args:
-            start: 开始日期
-            end: 结束日期
-            symbols: 交易标的列表
-            verbose: 是否打印详细信息
-
-        Returns:
-            每日执行结果列表
-        """
-        results = []
-        market = TradingSession.get_market_type(symbols[0]) if symbols else 'US'
-
-        # 获取所有交易日
-        trading_days = TradingSession.get_trading_days(start, end, market)
-
-        if verbose:
-            print(f"\n开始回测: {start} 到 {end}")
-            print(f"交易标的: {', '.join(symbols)}")
-            print(f"交易日数量: {len(trading_days)}")
-            print(f"初始资金: ${self.broker.get_cash_balance():,.2f}\n")
-
-        # 逐日运行
-        for i, trading_date in enumerate(trading_days, 1):
-            daily_result = self.run_one_day(trading_date, symbols)
-            results.append(daily_result)
-
-            if verbose and daily_result["signals_generated"] > 0:
-                print(f"[{i}/{len(trading_days)}] {trading_date}: "
-                      f"信号={daily_result['signals_generated']}, "
-                      f"成交={daily_result['orders_executed']}, "
-                      f"拒绝={daily_result['orders_rejected']}")
-
-        if verbose:
-            self._print_summary()
-
-        return results
+        """兼容入口（默认回放）"""
+        return self.run_replay_backtest(start, end, symbols, interval="1d", verbose=verbose)
 
     def _print_summary(self):
         """打印回测摘要"""
         print("\n" + "="*60)
         print("回测摘要")
         print("="*60)
+
+    def _write_replay_outputs(
+        self,
+        output_dir: str,
+        start: date,
+        end: date,
+        interval: str,
+        symbols: List[str],
+        equity_curve: List[dict],
+        risk_rejects: List[dict]
+    ):
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        summary = {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "interval": interval,
+            "symbols": symbols,
+            "initial_cash": float(self.broker.initial_cash),
+            "final_equity": float(self.broker.get_total_equity()),
+            "total_pnl": float(self.broker.get_total_pnl()),
+            "trade_count": len(self.broker.get_trades())
+        }
+
+        summary_path = out_dir / "summary.json"
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+        equity_path = out_dir / "equity_curve.csv"
+        with equity_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", "cash", "equity", "pnl"])
+            for row in equity_curve:
+                writer.writerow([
+                    row["date"].isoformat(),
+                    float(row["cash"]),
+                    float(row["equity"]),
+                    float(row["pnl"])
+                ])
+
+        trades_path = out_dir / "trades.csv"
+        with trades_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["trade_id", "timestamp", "symbol", "side", "price", "quantity", "commission"])
+            for trade in self.broker.get_trades():
+                writer.writerow([
+                    trade.trade_id,
+                    trade.timestamp.isoformat(),
+                    trade.symbol,
+                    trade.side,
+                    float(trade.price),
+                    trade.quantity,
+                    float(trade.commission)
+                ])
+
+        rejects_path = out_dir / "risk_rejects.csv"
+        with rejects_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", "symbol", "action", "reason"])
+            for item in risk_rejects:
+                writer.writerow([
+                    item["date"].isoformat(),
+                    item["symbol"],
+                    item["action"],
+                    item["reason"]
+                ])
+
+        self._validate_replay_outputs([
+            summary_path,
+            equity_path,
+            trades_path,
+            rejects_path
+        ])
+
+    def _validate_replay_outputs(self, paths: List[Path]):
+        missing = [p for p in paths if not p.exists()]
+        if missing:
+            names = ", ".join(p.name for p in missing)
+            raise RuntimeError(f"missing_replay_outputs: {names}")
+
+        empty = [p for p in paths if p.stat().st_size == 0]
+        if empty:
+            names = ", ".join(p.name for p in empty)
+            raise RuntimeError(f"empty_replay_outputs: {names}")
 
         print(f"\n账户状态:")
         print(f"  最终现金: ${self.broker.get_cash_balance():,.2f}")
@@ -296,7 +416,8 @@ class TradingAgent:
 def create_default_agent(
     initial_cash: float = 1000000,
     db_path: Optional[str] = None,
-    log_dir: str = "logs"
+    log_dir: str = "logs",
+    seed: int = 42
 ) -> TradingAgent:
     """创建默认配置的Agent
 
@@ -309,7 +430,7 @@ def create_default_agent(
         配置好的TradingAgent
     """
     # 创建各个组件
-    data_source = MockMarketSource(seed=42)
+    data_source = MockMarketSource(seed=seed)
     strategy = MAStrategy(fast_period=5, slow_period=20)
     risk_manager = BasicRiskManager(
         max_position_ratio=0.2,
@@ -338,6 +459,10 @@ if __name__ == "__main__":
     parser.add_argument('--end', type=str, default='2024-01-31', help='结束日期 (YYYY-MM-DD)')
     parser.add_argument('--cash', type=float, default=100000, help='初始资金')
     parser.add_argument('--db', type=str, default=None, help='数据库路径')
+    parser.add_argument('--interval', type=str, default='1d', help='K线周期')
+    parser.add_argument('--symbols', type=str, default='AAPL,GOOGL,MSFT', help='交易标的(逗号分隔)')
+    parser.add_argument('--mode', type=str, default='replay', choices=['replay', 'backtest'], help='运行模式')
+    parser.add_argument('--output-dir', type=str, default='reports/replay', help='回放输出目录')
     parser.add_argument('--quiet', action='store_true', help='静默模式')
 
     args = parser.parse_args()
@@ -350,15 +475,25 @@ if __name__ == "__main__":
     agent = create_default_agent(initial_cash=args.cash, db_path=args.db)
 
     # 运行回测
-    symbols = ["AAPL", "GOOGL", "MSFT"]
+    symbols = [s.strip() for s in args.symbols.split(',') if s.strip()]
 
     try:
-        results = agent.run_backtest(
-            start=start_date,
-            end=end_date,
-            symbols=symbols,
-            verbose=not args.quiet
-        )
+        if args.mode == "replay":
+            results = agent.run_replay_backtest(
+                start=start_date,
+                end=end_date,
+                symbols=symbols,
+                interval=args.interval,
+                output_dir=args.output_dir,
+                verbose=not args.quiet
+            )
+        else:
+            results = agent.run_backtest(
+                start=start_date,
+                end=end_date,
+                symbols=symbols,
+                verbose=not args.quiet
+            )
 
         if not args.quiet:
             print(f"\n✓ 回测完成")

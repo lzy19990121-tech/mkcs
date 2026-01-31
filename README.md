@@ -35,16 +35,21 @@ mkcs/
 pip install -r requirements.txt
 ```
 
-### 运行回测
+### 运行回放回测
 
-基础回测（使用模拟数据）：
+基础回放（使用模拟数据）：
 ```bash
-python -m agent.runner --start 2024-01-01 --end 2024-01-31 --cash 100000
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --cash 100000
 ```
 
-带数据库持久化的回测：
+带数据库持久化的回放：
 ```bash
-python -m agent.runner --start 2024-01-01 --end 2024-01-31 --db trading.db
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --db trading.db
+```
+
+指定输出目录：
+```bash
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --output-dir reports/replay
 ```
 
 查看帮助：
@@ -67,22 +72,22 @@ python tests/test_integration.py
 python core/models.py
 
 # 测试市场数据源
-PYTHONPATH=/home/gushengdong/mkcs python -m skills.market_data.mock_source
+PYTHONPATH=/home/neal/mkcs python -m skills.market_data.mock_source
 
 # 测试交易时段管理
-PYTHONPATH=/home/gushengdong/mkcs python skills/session/trading_session.py
+PYTHONPATH=/home/neal/mkcs python skills/session/trading_session.py
 
 # 测试策略
-PYTHONPATH=/home/gushengdong/mkcs python -m skills.strategy.moving_average
+PYTHONPATH=/home/neal/mkcs python -m skills.strategy.moving_average
 
 # 测试风控
-PYTHONPATH=/home/gushengdong/mkcs python -m skills.risk.basic_risk
+PYTHONPATH=/home/neal/mkcs python -m skills.risk.basic_risk
 
 # 测试模拟经纪商
-PYTHONPATH=/home/gushengdong/mkcs python broker/paper.py
+PYTHONPATH=/home/neal/mkcs python broker/paper.py
 
 # 测试报告生成
-PYTHONPATH=/home/gushengdong/mkcs python -m reports.daily
+PYTHONPATH=/home/neal/mkcs python -m reports.daily
 ```
 
 ## 功能特性
@@ -100,6 +105,7 @@ PYTHONPATH=/home/gushengdong/mkcs python -m reports.daily
 2. **市场数据Skill** (skills/market_data/)
    - MockMarketSource: 模拟数据生成器
    - TrendingMockSource: 带趋势的模拟数据
+   - get_bars_until: 截止时间点取数
    - 支持美股和港股
 
 3. **交易时段Skill** (skills/session/)
@@ -120,14 +126,16 @@ PYTHONPATH=/home/gushengdong/mkcs python -m reports.daily
 
 6. **模拟经纪商** (broker/)
    - PaperBroker: 虚拟账户管理
-   - 订单执行
+   - 订单提交/撮合 (submit_order/on_bar)
+   - 禁止同bar成交 (t+1 open撮合)
    - 持仓管理
    - 资金管理
 
 7. **Agent编排器** (agent/)
    - TradingAgent: 任务编排
-   - 回测主循环
-   - 协调各个skill
+   - ReplayEngine: 时间推进器
+   - tick(ctx): 单步推进
+   - 回放主循环 (run_replay_backtest)
 
 8. **报告生成** (reports/)
    - DailyReport: 每日报告
@@ -146,6 +154,15 @@ PYTHONPATH=/home/gushengdong/mkcs python -m reports.daily
 - [x] Phase 3: 业务逻辑层
 - [x] Phase 4: 编排层
 - [x] Phase 5: 集成测试
+
+## 回放输出文件
+
+回放结束会输出以下文件到 `--output-dir`：
+
+- `summary.json`
+- `equity_curve.csv`
+- `trades.csv`
+- `risk_rejects.csv`
 
 ## 许可证
 

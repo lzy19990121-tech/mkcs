@@ -99,7 +99,7 @@ class DailyReviewer:
         signal_count = len([e for e in events if e.get('stage') == 'signal_gen'])
         risk_pass = len([e for e in events if e.get('stage') == 'risk_check' and e['payload'].get('approved')])
         risk_fail = len([e for e in events if e.get('stage') == 'risk_check' and not e['payload'].get('approved')])
-        trade_count = len([e for e in events if e.get('stage') == 'order_exec'])
+        trade_count = len([e for e in events if e.get('stage') == 'order_fill'])
 
         lines.append(f"- **信号数量**: {signal_count}\n")
         lines.append(f"- **风控通过**: {risk_pass}\n")
@@ -108,9 +108,10 @@ class DailyReviewer:
         lines.append(f"- **执行率**: {trade_count/signal_count*100:.1f}%\n" if signal_count > 0 else "- **执行率**: N/A\n")
 
         # 按标的统计
-        symbols = set(e.get('symbol') for e in events if e.get('symbol'))
-        lines.append(f"- **涉及标的**: {len(symbols)} 只\n")
-        lines.append(f"- **标的列表**: {', '.join(sorted(symbols))}\n")
+        symbols = [str(e.get('symbol')) for e in events if e.get('symbol') is not None]
+        unique_symbols = sorted(set(symbols))
+        lines.append(f"- **涉及标的**: {len(unique_symbols)} 只\n")
+        lines.append(f"- **标的列表**: {', '.join(unique_symbols)}\n")
 
         return lines
 
@@ -118,32 +119,61 @@ class DailyReviewer:
         """生成执行回顾"""
         lines = []
 
-        # 查询订单执行事件
-        events = self.event_logger.query_events(
+        # 查询订单事件
+        fill_events = self.event_logger.query_events(
             start=datetime.combine(target_date, datetime.min.time()),
             end=datetime.combine(target_date, datetime.max.time()),
-            stage='order_exec'
+            stage='order_fill'
         )
 
-        if not events:
+        submit_events = self.event_logger.query_events(
+            start=datetime.combine(target_date, datetime.min.time()),
+            end=datetime.combine(target_date, datetime.max.time()),
+            stage='order_submit'
+        )
+
+        reject_events = self.event_logger.query_events(
+            start=datetime.combine(target_date, datetime.min.time()),
+            end=datetime.combine(target_date, datetime.max.time()),
+            stage='order_reject'
+        )
+
+        lines.append(f"- 提交订单: {len(submit_events)}\n")
+        lines.append(f"- 成交订单: {len(fill_events)}\n")
+        lines.append(f"- 拒绝订单: {len(reject_events)}\n\n")
+
+        if not fill_events:
             lines.append("当日无成交\n")
-            return lines
+        else:
+            lines.append("### 成交明细\n\n")
+            lines.append("| 时间 | 标的 | 方向 | 价格 | 数量 | 原因 |\n")
+            lines.append("|------|------|------|------|------|------|\n")
 
-        lines.append("### 成交明细\n\n")
-        lines.append("| 时间 | 标的 | 方向 | 价格 | 数量 | 原因 |\n")
-        lines.append("|------|------|------|------|------|------|\n")
+            for event in fill_events:
+                ts = datetime.fromisoformat(event['ts']).strftime('%H:%M:%S')
+                symbol = event['symbol']
+                payload = event['payload']
+                side = payload.get('side', 'N/A')
+                price = payload.get('price', 0)
+                quantity = payload.get('quantity', 0)
+                reason = event['reason']
 
-        for event in events:
-            ts = datetime.fromisoformat(event['ts']).strftime('%H:%M:%S')
-            symbol = event['symbol']
-            payload = event['payload']
-            side = payload.get('side', 'N/A')
-            price = payload.get('price', 0)
-            quantity = payload.get('quantity', 0)
-            reason = event['reason']
+                lines.append(f"| {ts} | {symbol} | {side} | ${price:.2f} | {quantity} | {reason} |\n")
 
-            lines.append(f"| {ts} | {symbol} | {side} | ${price:.2f} | {quantity} | {reason} |\n")
+        if reject_events:
+            lines.append("\n### 拒绝明细\n\n")
+            lines.append("| 时间 | 标的 | 方向 | 数量 | 原因 |\n")
+            lines.append("|------|------|------|------|------|\n")
 
+            for event in reject_events:
+                ts = datetime.fromisoformat(event['ts']).strftime('%H:%M:%S')
+                symbol = event['symbol']
+                payload = event['payload']
+                side = payload.get('side', payload.get('action', 'N/A'))
+                quantity = payload.get('quantity', 0)
+                reason = event['reason']
+
+                lines.append(f"| {ts} | {symbol} | {side} | {quantity} | {reason} |\n")
         return lines
 
     def _generate_signal_quality(self, target_date: date) -> List[str]:
@@ -337,9 +367,9 @@ if __name__ == "__main__":
         Event(
             ts=datetime.combine(target_date, datetime.min.time()).replace(hour=9, minute=37),
             symbol="AAPL",
-            stage="order_exec",
+            stage="order_fill",
             payload={"side": "BUY", "price": 150.0, "quantity": 100},
-            reason="订单执行"
+            reason="订单成交"
         ),
         Event(
             ts=datetime.combine(target_date, datetime.min.time()).replace(hour=10, minute=0),

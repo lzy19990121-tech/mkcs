@@ -57,21 +57,21 @@
 
 - ✅ Paper Broker
   - 虚拟账户管理（初始资金可配置）
-  - 订单执行（买入/卖出）
+  - 订单提交与撮合（submit_order / on_bar）
+  - 禁止同bar成交（t+1 open撮合）
   - 持仓管理
   - 资金管理
   - 手续费计算（$0.01/股）
-  - 测试通过：4笔交易执行，持仓更新正确
 
 **Commit**: `51b221b` - Phase 3: Business logic layer implementation
 
 ### Phase 4: 编排层 ✅
 - ✅ Agent Runner
-  - TradingAgent: 主循环编排
-  - 协调所有skills
-  - 单日执行逻辑
-  - 回测流程控制
-  - 测试通过：21个交易日回测，2个信号，2笔成交
+  - TradingAgent: 回放编排
+  - ReplayEngine: 时间推进器
+  - tick(ctx): 单步推进
+  - 回放主循环 (run_replay_backtest)
+  - 回放输出: summary.json / equity_curve.csv / trades.csv / risk_rejects.csv
 
 - ✅ Daily Report
   - 每日交易报告生成
@@ -84,7 +84,7 @@
 **Commit**: `6f9d7ad` - Phase 4: Orchestration layer implementation
 
 ### Phase 5: 集成测试 ✅
-- ✅ 端到端回测（2024年1月全月）
+- ✅ 端到端回放（2024年1月全月）
 - ✅ 数据一致性验证
   - 交易记录数量一致：2笔
   - 持仓数据保存：33个快照
@@ -98,10 +98,10 @@
 
 **测试结果**:
 - 初始资金: $100,000
-- 最终权益: $101,003
-- 总收益率: +1.00%
-- 执行率: 100%
-- 持仓: AAPL (100股), GOOGL (100股)
+- 最终权益: $100,444
+- 总收益率: +0.44%
+- 执行率: 75%
+- 持仓: AAPL (100股)
 
 **Commit**: `d6bf42e` - Phase 5: Integration testing completed
 
@@ -194,20 +194,25 @@
 - 代码变更可追溯
 - 支持版本回退
 
+### 6. 回放时间推进
+- RunContext 统一运行时上下文
+- ReplayEngine 控制交易日推进
+- 撮合在下一根bar open完成
+
 ---
 
 ## 使用示例
 
-### 基础回测
+### 回放回测
 ```bash
-# 运行2024年1月回测，初始资金10万
-python -m agent.runner --start 2024-01-01 --end 2024-01-31 --cash 100000
+# 运行2024年1月回放，初始资金10万
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --cash 100000
 ```
 
-### 带数据库的回测
+### 带数据库的回放
 ```bash
 # 保存交易记录到数据库
-python -m agent.runner --start 2024-01-01 --end 2024-01-31 --db trading.db
+python -m agent.runner --mode replay --start 2024-01-01 --end 2024-01-31 --interval 1d --db trading.db --output-dir reports/replay
 ```
 
 ### 运行集成测试
@@ -265,6 +270,8 @@ class AIPoweredRisk(RiskManager):
 
 ```
 python-dateutil>=2.8.2
+rich>=13.7.0
+textual>=0.47.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 black>=23.7.0
