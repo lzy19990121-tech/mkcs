@@ -29,6 +29,12 @@ mkcs/
 │   ├── replay_engine.py       # 回放引擎
 │   ├── live_runner.py         # 实时交易
 │   └── health_monitor.py      # 健康监控
+├── analysis/           # 风险分析模块
+│   ├── replay_schema.py       # 统一输出格式
+│   ├── window_scanner.py      # 窗口扫描器
+│   ├── stability_analysis.py  # 稳定性分析
+│   ├── multi_strategy_comparison.py  # 多策略对比
+│   └── risk_card_generator.py # Risk Card生成器
 ├── runs/               # 实验运行目录
 │   └── <experiment_id>/
 │       ├── run_manifest.json
@@ -39,7 +45,7 @@ mkcs/
 │   └── compare_strategies.py
 ├── config.py           # 回测配置
 ├── run_manifest.py    # 运行清单
-└── tests/              # 测试��例
+└── tests/              # 测试用例
 ```
 
 ## 快速开始
@@ -104,7 +110,18 @@ python scripts/compare_strategies.py
 - `compare_report.md` - Markdown格式报告
 - `compare_table.csv` - CSV格式表格
 
-### 4. Paper模式（实时数据）
+### 4. 生成风险分析报告
+
+```bash
+# 为所有回测结果生成Risk Card
+python -c "from analysis import generate_risk_cards; generate_risk_cards('runs', 'runs/risk_analysis')"
+```
+
+风险分析报告输出到 `runs/risk_analysis/`：
+- `<experiment_id>_risk_card.md` - 单个策略的详细风险报告
+- `comparison_risk_card.md` - 多策略风险对比报告
+
+### 5. Paper模式（实时数据）
 
 ```bash
 python -m agent.live_runner --mode paper \
@@ -182,6 +199,154 @@ config = BacktestConfig(
 - **BPS滑点**: 买入价格增加，卖出价格减少
 - **手续费**: 每股固定费用
 
+## 风险分析系统
+
+### 概述
+
+风险分析系统提供最坏情况场景检测和评估，帮助识别策略的潜在风险点。
+
+### 核心功能
+
+#### 1. 时间窗口扫描 (Window Scanner)
+
+扫描多个时间窗口（1d, 5d, 20d, 60d, 120d, 250d），找到最坏情况窗口：
+
+```python
+from analysis import WindowScanner, load_replay_outputs
+
+# 加载回测结果
+replays = load_replay_outputs("runs")
+
+# 创建窗口扫描器
+scanner = WindowScanner(windows=["5d", "20d", "60d"], top_k=5)
+
+# 找到最坏窗口
+worst_windows = scanner.find_worst_windows(replays[0])
+
+for w in worst_windows:
+    print(f"{w.window_id}: {w.total_return*100:.2f}% (MDD={w.max_drawdown*100:.1f}%)")
+```
+
+#### 2. 风险指标
+
+| 指标 | 说明 |
+|------|------|
+| 最大回撤 (MDD) | 窗口内最大权益回撤 |
+| 回撤持续 | 最大回撤持续天数 |
+| 回撤恢复时间 | 从最大回撤恢复所需天数 |
+| Ulcer指数 | 回撤面积指标 |
+| 下行波动 | 负收益波动率 |
+| 95% CVaR | 条件风险价值 |
+| 尾部均值 | 最差5%日均收益 |
+| 尖刺风险 | 最大单步亏损、最长连亏 |
+| 回撤形态 | sharp/slow_recovery/unrecovered |
+
+#### 3. 稳定性分析
+
+评估策略在不同窗口长度下的稳定性：
+
+```python
+from analysis import StabilityAnalyzer, analyze_all_stability
+
+# 分析所有策略的稳定性
+reports = analyze_all_stability("runs")
+
+for report in reports:
+    print(f"{report.strategy_id}: 稳定性评分 {report.stability_score:.1f}/100")
+```
+
+**稳定性评分组成**：
+- 收益方差（0-40分惩罚）
+- MDD一致性（0-30分惩罚）
+- 最差CVaR（0-30分惩罚）
+- 满分100分，越高越稳定
+
+#### 4. 多策略对比
+
+比较不同策略的最坏情况表现：
+
+```python
+from analysis import MultiStrategyComparator, compare_all_strategies
+
+# 对比所有策略
+summaries = compare_all_strategies("runs")
+
+# 生成对比表格
+comparator = MultiStrategyComparator()
+df = comparator.generate_comparison_table(summaries)
+print(df)
+
+# 找到各窗口最优策略
+best_20d = comparator.find_best_for_window(summaries, "20d")
+print(f"20d窗口最优: {best_20d.strategy_name}")
+```
+
+#### 5. Risk Card 生成
+
+自动生成Markdown格式的风险分析报告：
+
+```python
+from analysis import generate_risk_cards, RiskCardGenerator
+
+# 为所有replay生成Risk Card
+generate_risk_cards("runs", "runs/risk_analysis")
+
+# 或使用生成器
+generator = RiskCardGenerator()
+generator.generate_for_replay(replay, "output/risk_card.md")
+generator.generate_for_comparison(replays, "output/comparison.md")
+```
+
+**Risk Card内容包括**：
+- 基本信息（策略、日期、收益、git commit、config hash）
+- 稳定性评分和指标分解
+- Top-K最坏窗口详情
+- 各窗口长度最坏情况汇总
+- 可复现性审计指令
+- 完整配置快照
+
+### Risk Card 示例
+
+```markdown
+# 风险分析报告
+**策略**: ma_5_20
+**运行ID**: exp_abc123
+**生成时间**: 2026-01-31 23:26:07
+
+## 1. 基本信息
+- **回测期间**: 2024-01-01 至 2024-06-30
+- **总收益**: -1.71%
+- **Git Commit**: 0232e5c9
+- **Config Hash**: cfg_abc123
+
+## 2. 稳定性评分
+### 总分: 5.3 / 100
+
+| 指标 | 数值 |
+|------|------|
+| 收益方差 | 8.7478% |
+| 收益极差 | 86.26% |
+| MDD一致性 | 0.824 |
+| 最差CVaR | 5.415 |
+
+## 3. Top-K 最坏窗口
+
+### #1 - 20d 窗口
+- **时间范围**: 2024-05-31 至 2024-06-28
+- **窗口收益**: -27.24%
+- **最大回撤**: 1.93%
+- **回撤形态**: slow_recovery
+...
+```
+
+### 使用场景
+
+1. **策略验证**: 识别策略的最坏情况表现
+2. **参数调优**: 比较不同参数下的风险特征
+3. **策略选择**: 选择稳定性更好的策略
+4. **风险评估**: 评估最大潜在损失
+5. **可复现性审计**: 确保结果可完全复现
+
 ## 实验资产化 (runs/ 目录)
 
 每次回测自动生成实验ID并保存到独立目录：
@@ -195,6 +360,10 @@ runs/
 │   └── equity_curve.csv     # 权益曲线
 ├── exp_def456/              # 实验2
 │   └── ...
+├── risk_analysis/           # 风险分析报告
+│   ├── exp_abc123_risk_card.md
+│   ├── exp_def456_risk_card.md
+│   └── comparison_risk_card.md
 └── comparison/             # 策略对比
     ├── compare_report.md
     └── compare_table.csv
@@ -394,6 +563,31 @@ config = BacktestConfig(
     slippage_bps=2             # 2 BPS = 0.02%
 )
 ```
+
+### Q: 如何生成风险分析报告？
+
+A: 使用风险分析模块：
+
+```python
+from analysis import generate_risk_cards
+
+# 为所有回测结果生成Risk Card
+generate_risk_cards("runs", "runs/risk_analysis")
+
+# 报告将包含：
+# - 每个策略的详细风险报告
+# - 多策略对比报告
+# - 可复现性审计信息
+```
+
+### Q: 稳定性评分如何计算？
+
+A: 稳定性评分基于三个指标：
+- **收益方差**: 不同窗口最坏收益的方差（越小越好）
+- **MDD一致性**: 最大回撤的标准差/均值比（越小越好）
+- **最差CVaR**: 各窗口中最差的CVaR值（越小越好）
+
+满分100分，每项指标超出阈值会扣分，最终得分越高越稳定。
 
 ## 许可证
 
