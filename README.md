@@ -30,11 +30,16 @@ mkcs/
 │   ├── live_runner.py         # 实时交易
 │   └── health_monitor.py      # 健康监控
 ├── analysis/           # 风险分析模块
-│   ├── replay_schema.py       # 统一输出格式
+│   ├── replay_schema.py       # ���一输出格式
 │   ├── window_scanner.py      # 窗口扫描器
 │   ├── stability_analysis.py  # 稳定性分析
 │   ├── multi_strategy_comparison.py  # 多策略对比
-│   └── risk_card_generator.py # Risk Card生成器
+│   ├── risk_card_generator.py # Risk Card生成器
+│   ├── perturbation_test.py   # 扰动测试 (SPL-3b)
+│   ├── structural_analysis.py # 结构性风险分析 (SPL-3b)
+│   ├── risk_envelope.py       # 风险包络计算 (SPL-3b)
+│   ├── actionable_rules.py    # 可执行风控规则 (SPL-3b)
+│   └── deep_analysis_report.py # 深度分析报告生成 (SPL-3b)
 ├── runs/               # 实验运行目录
 │   └── <experiment_id>/
 │       ├── run_manifest.json
@@ -339,6 +344,313 @@ generator.generate_for_comparison(replays, "output/comparison.md")
 ...
 ```
 
+## SPL-3b 深度风险分析系统
+
+### 概述
+
+SPL-3b（Stress Perturbation Level-3b）是在基础风险分析之上的深度扰动测试系统，通过系统性压力测试识别策略的结构性风险并生成可执行的风控规则。
+
+### 核心组件
+
+#### 1. 扰动测试 (Perturbation Testing)
+
+测试最坏情况窗口在不同微小扰动下的稳定性：
+
+```python
+from analysis import PerturbationTester, PerturbationConfig
+from analysis.replay_schema import load_replay_outputs
+
+# 加载回测结果
+replays = load_replay_outputs("runs")
+replay = replays[0]
+
+# 配置扰动测试
+config = PerturbationConfig(
+    cost_epsilon=0.01,  # ±1% 成本扰动
+    capital_epsilon=0.01,  # ±1% 资金扰动
+    enable_replay_order=True,  # 重放顺序扰动
+    enable_cost_epsilon=True,  # 成本扰动
+    enable_capital_epsilon=True  # 资金扰动
+)
+
+# 运行扰动测试
+tester = PerturbationTester(config)
+results = tester.test_perturbations(replay, window_length="20d")
+
+for r in results:
+    print(f"{r.perturbation_type}: {r.stability_label}")
+    print(f"  原始收益: {r.original_return*100:.2f}%")
+    print(f"  扰动后: {r.perturbed_return*100:.2f}%")
+```
+
+**稳定性分类**：
+- **Stable**: 扰动后最坏窗口仍在同一时间区间（±2天）
+- **Weakly Stable**: 扰动后最坏窗口在原始Top-K中
+- **Fragile**: 扰动后最坏窗口不在Top-K中
+
+**扰动类型**：
+| 类型 | 说明 | 扰动值 |
+|------|------|--------|
+| replay_order | 重放顺序变化 | 随机打乱 |
+| cost_epsilon | 交易成本变化 | ±1% |
+| capital_epsilon | 初始资金变化 | ±1% |
+
+#### 2. 结构性风险分析 (Structural Analysis)
+
+分析Top-K最坏窗口是否存在相似的风险模式：
+
+```python
+from analysis import StructuralAnalyzer
+
+# 分析20d窗口的结构性风险
+analyzer = StructuralAnalyzer(top_k=5)
+result = analyzer.analyze(replay, window_length="20d")
+
+print(f"风险类型: {result.risk_pattern_type}")
+print(f"形态相似度: {result.metrics.pattern_similarity:.3f}")
+print(f"MDD变异系数: {result.metrics.mdd_cv:.3f}")
+
+if result.risk_pattern_type == "structural":
+    print("⚠️ 检测到结构性风险！最坏窗口高度相似")
+    print("建议在震荡市场时禁用该策略")
+```
+
+**风险类型**：
+- **Structural**: Top-K窗口高度相似（相似度 > 0.7），表示风险是结构性的、会重复发生
+- **Single-Outlier**: Top-K窗口差异大，最坏情况是单一异常事件
+
+**关键指标**：
+| 指标 | 说明 | 阈值 |
+|------|------|------|
+| pattern_similarity | 形态相似度 | >0.7为结构性 |
+| mdd_cv | MDD变异系数 | <0.3为稳定 |
+| avg_mdd | 平均最大回撤 | Top-K均值 |
+
+#### 3. 风险包络 (Risk Envelope)
+
+构建最坏情况的统计边界（P95/P99分位数）：
+
+```python
+from analysis import RiskEnvelopeBuilder
+
+# 构建风险包络
+builder = RiskEnvelopeBuilder(confidence_level=0.95)
+envelope = builder.build_envelope(replay, window_length="20d")
+
+print("=== 收益包络 ===")
+print(f"P50 (中位数): {envelope.return_percentiles['p50']*100:.2f}%")
+print(f"P95 (95%边界): {envelope.return_percentiles['p95']*100:.2f}%")
+print(f"P99 (99%边界): {envelope.return_percentiles['p99']*100:.2f}%")
+
+print("\n=== MDD包络 ===")
+print(f"P95 MDD: {envelope.mdd_percentiles['p95']*100:.2f}%")
+
+print("\n=== 持续时间包络 ===")
+print(f"P95 持续: {envelope.duration_percentiles['p95']:.1f}天")
+```
+
+**风险包络用途**：
+- 设定止损阈值
+- 评估极端情况损失
+- 制定仓位管理规则
+
+#### 4. 可执行风控规则 (Actionable Rules)
+
+基于深度分析生成可执行的if-then风控规则：
+
+```python
+from analysis import RiskRuleGenerator, DeepAnalysisReportGenerator
+
+# 生成深度分析报告（包含规则）
+generator = DeepAnalysisReportGenerator()
+report = generator.generate_full_report(replay, window_lengths=["20d", "60d"])
+
+# 保存报告
+with open("runs/deep_analysis_v3b/exp_abc123_deep_analysis_v3b.md", "w") as f:
+    f.write(report.markdown_report)
+
+with open("runs/deep_analysis_v3b/exp_abc123_deep_analysis_v3b.json", "w") as f:
+    f.write(report.json_report)
+```
+
+**规则类型**：
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| Gating | 暂停交易 | 稳定性评分 < 30 → 暂停 |
+| Position Reduction | 降低仓位 | 窗口收益 < -10% → 减仓50% |
+| Disable | 禁用策略 | 震荡市场 → 禁用 |
+
+**规则示例**：
+```python
+# 规则1: 低稳定性暂停交易
+if stability_score < 30:
+    pause_trading(reason="稳定性不足")
+
+# 规则2: 极端亏损降仓
+if window_return < -0.10:  # -10%
+    reduce_position_by(0.50)  # 降低50%仓位
+
+# 规则3: 结构性风险禁用
+if market_regime == "ranging" and adx < 25:
+    disable_strategy(reason="震荡市场，结构性风险")
+```
+
+### 完整工作流程
+
+```python
+from analysis import (
+    load_replay_outputs,
+    DeepAnalysisReportGenerator
+)
+
+# 1. 加载所有回测结果
+replays = load_replay_outputs("runs")
+
+# 2. 生成深度分析报告
+generator = DeepAnalysisReportGenerator()
+
+for replay in replays:
+    # 生成Markdown + JSON双格式报告
+    report = generator.generate_full_report(
+        replay,
+        window_lengths=["20d", "60d"]
+    )
+
+    # 保存报告
+    run_id = replay.run_id
+    md_path = f"runs/deep_analysis_v3b/{run_id}_deep_analysis_v3b.md"
+    json_path = f"runs/deep_analysis_v3b/{run_id}_deep_analysis_v3b.json"
+
+    with open(md_path, "w") as f:
+        f.write(report.markdown_report)
+
+    with open(json_path, "w") as f:
+        f.write(report.json_report)
+
+    print(f"✅ {run_id}: 深度分析完成")
+```
+
+### 报告内容
+
+#### Markdown报告 (`*_deep_analysis_v3b.md`)
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║         SPL-3b 深度风险分析报告                                    ║
+║         深度扰动测试 + 结构分析 + 风险包络 + 可执行规则           ║
+╚════════════════════════════════════════════════════════════════╝
+
+# 20d 窗口 - 深度风险分析
+
+## 一、Worst-Case 稳定性检验（扰动测试）
+**稳定性标签**: Stable
+
+### 扰动测试详情
+| 扰动类型 | 扰动值 | 原始收益 | 扰动后收益 | 差异 | 同一窗口 | 在Top-K |
+|----------|--------|----------|------------|------|----------|---------|
+| replay_order | +0.0% | 4.15% | 4.15% | +0.00% | ✓ | ✓ |
+| cost_epsilon | +1.0% | 4.15% | 4.19% | +0.04% | ✓ | ✓ |
+| capital_epsilon | -1.0% | 4.15% | 4.19% | +0.04% | ✓ | ✓ |
+
+## 二、Worst-Case 结构确认
+**风险类型**: 结构性风险 (Structural Risk Pattern)
+
+### 形态指标
+| 指标 | 数值 | 说明 |
+|------|------|------|
+| 形态相似度 | 0.897 | >0.7为高度相似 |
+| MDD变异系数 | 0.000 | <0.3为稳定 |
+
+## 三、Worst-Case Envelope（风险边界）
+### Worst-Case Return 分位数
+| 分位数 | 数值 | 说明 |
+|--------|------|------|
+| P95    |   -26.97% | 95%置信边界 |
+| P99    |   -26.96% | 99%置信边界 |
+
+## 四、可执行风险规则
+### 规则 #1: 结构性风险禁用
+- **触发条件**: `market_regime < 0.0`
+- **描述**: 策略表现出结构性风险（形态相似度0.90）
+- **伪代码**: `if market_regime < 0.0: disable_strategy()`
+```
+
+#### JSON报告 (`*_deep_analysis_v3b.json`)
+
+```json
+{
+  "strategy_id": "ma_5_20",
+  "run_id": "exp_1677b52a",
+  "commit_hash": "0232e5c9",
+  "config_hash": "cfg_1677b52a",
+  "windows": {
+    "20d": {
+      "stability_label": "Stable",
+      "risk_pattern_type": "structural",
+      "pattern_metrics": {
+        "pattern_similarity": 0.753,
+        "mdd_cv": 0.155
+      },
+      "envelope": {
+        "return_percentiles": {
+          "p95": -0.2697,
+          "p99": -0.2696
+        }
+      },
+      "rules": [
+        {
+          "rule_id": "ma_5_20_regime_disable",
+          "rule_type": "disable",
+          "trigger_metric": "market_regime",
+          "trigger_threshold": 0.0,
+          "description": "策略表现出结构性风险"
+        }
+      ]
+    }
+  }
+}
+```
+
+### 自我评估问题
+
+使用SPL-3b系统后，可以回答以下关键问题：
+
+1. **最坏情况是否稳定？**
+   - 通过扰动测试验证
+   - Stable表示不是偶然事件
+
+2. **风险是重复的还是偶然的？**
+   - 通过结构分析判断
+   - Structural表示会重复发生
+
+3. **风险上限是多少？**
+   - 通过风险包络量化
+   - P95/P99给出明确边界
+
+4. **应该优先应用什么控制？**
+   - 通过可执行规则指导
+   - 明确的if-then逻辑
+
+### 使用场景
+
+1. **策略上线前验证**: 确保策略在压力测试下表现稳定
+2. **风控规则设计**: 基于实际风险特征制定规则
+3. **风险评估**: 量化极端情况下的潜在损失
+4. **策略优化**: 识别结构性弱点并改进
+
+### 示例输出
+
+报告保存在 `runs/deep_analysis_v3b/` 目录：
+
+```
+runs/deep_analysis_v3b/
+├── exp_1677b52a_deep_analysis_v3b.md   # MA(5,20)分析
+├── exp_1677b52a_deep_analysis_v3b.json
+├── exp_3f38beb1_deep_analysis_v3b.md
+├── exp_3f38beb1_deep_analysis_v3b.json
+└── ...
+```
+
 ### 使用场景
 
 1. **策略验证**: 识别策略的最坏情况表现
@@ -364,6 +676,10 @@ runs/
 │   ├── exp_abc123_risk_card.md
 │   ├── exp_def456_risk_card.md
 │   └── comparison_risk_card.md
+├── deep_analysis_v3b/       # SPL-3b深度分析
+│   ├��─ exp_abc123_deep_analysis_v3b.md
+│   ├── exp_abc123_deep_analysis_v3b.json
+│   └── ...
 └── comparison/             # 策略对比
     ├── compare_report.md
     └── compare_table.csv
