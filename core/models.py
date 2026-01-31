@@ -140,6 +140,9 @@ class OrderIntent:
         return self.approved and self.signal.action != 'HOLD'
 
 
+TradeSide = Literal['BUY', 'SELL']
+
+
 @dataclass(frozen=True)
 class Trade:
     """成交记录
@@ -152,14 +155,16 @@ class Trade:
         quantity: 成交量
         timestamp: 成交时间
         commission: 手续费
+        realized_pnl: 已实现盈亏（可选）
     """
     trade_id: str
     symbol: str
-    side: Literal['BUY', 'SELL']
+    side: TradeSide
     price: Decimal
     quantity: int
     timestamp: datetime
     commission: Decimal
+    realized_pnl: Decimal = Decimal("0")
 
     def __post_init__(self):
         """验证数据有效性"""
