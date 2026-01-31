@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交易回测系统 - 可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e6e6e6;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid #2a3441;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #00d4aa 0%, #00a8e8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #8899a6;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: #161f2e;
+            border-radius: 12px;
+            padding: 20px;
+            height: fit-content;
+        }
+
+        .sidebar h3 {
+            color: #00d4aa;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .backtest-list {
+            list-style: none;
+        }
+
+        .backtest-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #0f1419;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .backtest-item:hover {
+            background: #1a2332;
+            border-left-color: #00d4aa;
+        }
+
+        .backtest-item.active {
+            background: #1a2332;
+            border-left-color: #00d4aa;
+        }
+
+        .backtest-item .date {
+            font-size: 0.85rem;
+            color: #8899a6;
+        }
+
+        .backtest-item .return {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .backtest-item .return.positive {
+            color: #00d4aa;
+        }
+
+        .backtest-item .return.negative {
+            color: #ff6b6b;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .metric-card {
+            background: #161f2e;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .metric-card .label {
+            font-size: 0.85rem;
+            color: #8899a6;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+
+        .metric-card .value.positive {
+            color: #00d4aa;
+        }
+
+        .metric-card .value.negative {
+            color: #ff6b6b;
+        }
+
+        .chart-container {
+            background: #161f2e;
+            border-radius: 12px;
+            padding: 20px;
+            height: 400px;
+        }
+
+        .chart-container h3 {
+            margin-bottom: 15px;
+            color: #e6e6e6;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: calc(100% - 40px);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #161f2e;
+            border: none;
+            color: #8899a6;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background: #1a2332;
+            color: #e6e6e6;
+        }
+
+        .tab.active {
+            background: #00d4aa;
+            color: #0f1419;
+        }
+
+        .data-table {
+            background: #161f2e;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .data-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #2a3441;
+        }
+
+        .data-table th {
+            background: #0f1419;
+            color: #00d4aa;
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background: #1a2332;
+        }
+
+        .data-table .positive {
+            color: #00d4aa;
+        }
+
+        .data-table .negative {
+            color: #ff6b6b;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge.buy {
+            background: rgba(0, 212, 170, 0.2);
+            color: #00d4aa;
+        }
+
+        .badge.sell {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #8899a6;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8899a6;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>交易回测系统</h1>
+            <p>量化交易策略回测结果可视化分析</p>
+        </header>
+
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>回测列表</h3>
+                <ul class="backtest-list" id="backtestList">
+                    <li class="loading">加载中...</li>
+                </ul>
+            </aside>
+
+            <main class="main-content">
+                <div id="contentArea">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/>
+                        </svg>
+                        <p>请从左侧选择一个回测结果查看详情</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentBacktestId = null;
+        let equityChart = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBacktestList();
+        });
+
+        // 加载回测列表
+        async function loadBacktestList() {
+            try {
+                const response = await fetch('/api/backtests');
+                const backtests = await response.json();
+                renderBacktestList(backtests);
+            } catch (error) {
+                console.error('加载回测列表失败:', error);
+                document.getElementById('backtestList').innerHTML =
+                    '<li class="loading">加载失败，请刷新重试</li>';
+            }
+        }
+
+        // 渲染回测列表
+        function renderBacktestList(backtests) {
+            const listEl = document.getElementById('backtestList');
+
+            if (backtests.length === 0) {
+                listEl.innerHTML = '<li class="loading">暂无回测数据</li>';
+                return;
+            }
+
+            listEl.innerHTML = backtests.map(bt => `
+                <li class="backtest-item ${bt.id === currentBacktestId ? 'active' : ''}"
+                    onclick="selectBacktest('${bt.id}')">
+                    <div class="date">${formatDate(bt.date)}</div>
+                    <div class="return ${bt.total_return >= 0 ? 'positive' : 'negative'}">
+                        ${bt.total_return >= 0 ? '+' : ''}${(bt.total_return * 100).toFixed(2)}%
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        // 选择回测
+        async function selectBacktest(id) {
+            currentBacktestId = id;
+
+            // 更新列表选中状态
+            document.querySelectorAll('.backtest-item').forEach(el => {
+                el.classList.toggle('active', el.onclick.toString().includes(id));
+            });
+
+            // 加载详情
+            try {
+                const [backtestRes, metricsRes] = await Promise.all([
+                    fetch(`/api/backtest/${id}`),
+                    fetch(`/api/backtest/${id}/metrics`)
+                ]);
+
+                const backtestData = await backtestRes.json();
+                const metricsData = await metricsRes.json();
+
+                renderDashboard(backtestData, metricsData);
+            } catch (error) {
+                console.error('加载回测详情失败:', error);
+            }
+        }
+
+        // 渲染仪表盘
+        function renderDashboard(data, metrics) {
+            const contentArea = document.getElementById('contentArea');
+            const summary = data.summary || {};
+
+            contentArea.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="label">总收益率</div>
+                        <div class="value ${summary.total_return >= 0 ? 'positive' : 'negative'}">
+                            ${summary.total_return >= 0 ? '+' : ''}${(summary.total_return * 100).toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">总交易次数</div>
+                        <div class="value">${summary.total_trades || 0}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">胜率</div>
+                        <div class="value">${(summary.win_rate * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">夏普比率</div>
+                        <div class="value">${(metrics.sharpe_ratio || 0).toFixed(2)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">最终权益</div>
+                        <div class="value">$${(summary.final_equity || 0).toLocaleString()}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">最大回撤</div>
+                        <div class="value negative">
+                            -${((metrics.max_drawdown || 0) * 100).toFixed(2)}%
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>权益曲线</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="equityChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('trades')">交易记录</button>
+                    <button class="tab" onclick="showTab('rejects')">风控拒绝</button>
+                </div>
+
+                <div id="tradesTab" class="data-table">
+                    ${renderTradesTable(data.trades || [])}
+                </div>
+
+                <div id="rejectsTab" class="data-table" style="display: none;">
+                    ${renderRejectsTable(data.risk_rejects || [])}
+                </div>
+            `;
+
+            // 渲染权益曲线
+            if (data.equity_curve && data.equity_curve.length > 0) {
+                renderEquityChart(data.equity_curve);
+            }
+        }
+
+        // 渲染权益曲线图表
+        function renderEquityChart(equityData) {
+            const ctx = document.getElementById('equityChart').getContext('2d');
+
+            if (equityChart) {
+                equityChart.destroy();
+            }
+
+            const labels = equityData.map(d => formatDate(d.timestamp));
+            const equities = equityData.map(d => d.equity);
+
+            equityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '权益',
+                        data: equities,
+                        borderColor: '#00d4aa',
+                        backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#161f2e',
+                            titleColor: '#e6e6e6',
+                            bodyColor: '#e6e6e6',
+                            borderColor: '#2a3441',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return '权益: $' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: '#2a3441'
+                            },
+                            ticks: {
+                                color: '#8899a6',
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: '#2a3441'
+                            },
+                            ticks: {
+                                color: '#8899a6',
+                                callback: function(value) {
+                                    return '$' + (value / 1000).toFixed(1) + 'k';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 渲染交易记录表格
+        function renderTradesTable(trades) {
+            if (trades.length === 0) {
+                return '<div class="empty-state"><p>暂无交易记录</p></div>';
+            }
+
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>标的</th>
+                            <th>方向</th>
+                            <th>价格</th>
+                            <th>数量</th>
+                            <th>手续费</th>
+                            <th>盈亏</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${trades.map(t => `
+                            <tr>
+                                <td>${formatDateTime(t.timestamp)}</td>
+                                <td>${t.symbol}</td>
+                                <td><span class="badge ${t.side.toLowerCase()}">${t.side}</span></td>
+                                <td>$${t.price.toFixed(2)}</td>
+                                <td>${t.quantity}</td>
+                                <td>$${t.commission.toFixed(2)}</td>
+                                <td class="${t.pnl > 0 ? 'positive' : t.pnl < 0 ? 'negative' : ''}">
+                                    ${t.pnl ? (t.pnl > 0 ? '+' : '') + '$' + t.pnl.toFixed(2) : '-'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // 渲染风控拒绝表格
+        function renderRejectsTable(rejects) {
+            if (rejects.length === 0) {
+                return '<div class="empty-state"><p>暂无风控拒绝记录</p></div>';
+            }
+
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>标的</th>
+                            <th>操作</th>
+                            <th>原因</th>
+                            <th>置信度</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rejects.map(r => `
+                            <tr>
+                                <td>${formatDateTime(r.timestamp)}</td>
+                                <td>${r.symbol}</td>
+                                <td><span class="badge ${r.action.toLowerCase()}">${r.action}</span></td>
+                                <td>${r.reason}</td>
+                                <td>${r.confidence ? (r.confidence * 100).toFixed(1) + '%' : '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // 切换标签页
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            document.getElementById('tradesTab').style.display = tabName === 'trades' ? 'block' : 'none';
+            document.getElementById('rejectsTab').style.display = tabName === 'rejects' ? 'block' : 'none';
+        }
+
+        // 格式化日期
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        // 格式化日期时间
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    </script>
+</body>
+</html>
