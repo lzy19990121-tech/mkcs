@@ -580,6 +580,10 @@ class MLStrategy(Strategy):
         else:
             return 1
 
+    def get_min_bars_required(self) -> int:
+        """获取策略所需的最小K线数量"""
+        return self.feature_engineer.config.lookback_window + self.feature_engineer.config.prediction_horizon
+
     def train(self, bars: List[Bar]) -> None:
         """训练模型
 
