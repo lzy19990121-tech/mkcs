@@ -904,6 +904,159 @@ spl5_feedback = feedback_looper.generate_spl5_feedback(report)
 
 ---
 
+## Live Trading 实时交易系统 ⚡️
+
+### 概述
+
+实时交易系统将 SPL-7a 在线监控集成到 Live Trader，实现每个交易周期的风险快照、告警触发和事件记录。系统支持 **SHADOW 模式**（模拟，不下单）和 **LIVE 模式**（真实下单）。
+
+**P0 验收状态**: ✅ 已完成
+**验收文档**: `docs/P0_ACCEPTANCE.md`
+
+### 核心特性
+
+#### 1. SPL-7a 集成监控
+
+**3 个 Hook 点**:
+- **Pre-Decision**: 更新市场特征（vol/ADX/cost proxy）
+- **Post-Decision**: 记录 gating/allocator 决策结果
+- **Post-Fill**: 更新 PnL/DD/spike 并触发告警
+
+**实时输出**:
+- 每周期输出风险快照到 `data/live_monitoring/snapshots.jsonl`
+- 所有事件存储到 SQLite 数据库 `risk_events.db`
+- 严重告警自动生成 Post-mortem 报告
+
+#### 2. 配置化运行
+
+**Live Config** (`config/live/live_config.yaml`):
+```yaml
+mode: SHADOW  # SHADOW（模拟）/ LIVE（真实）
+symbols: [AAPL, MSFT]
+kill_switch:
+  max_daily_loss: 0.03  # 3% 止损
+  max_drawdown: 0.10
+position_limits:
+  max_single_position: 0.10  # 10%
+```
+
+**Alerts Config** (`config/live/alerts.yaml`):
+```yaml
+envelope_approach:
+  threshold: 0.70  # 70% envelope 使用率告警
+envelope_critical:
+  threshold: 0.90  # 90% 严重告警
+spike_surge:
+  threshold: 5      # 5 个 spike 告警
+```
+
+#### 3. 环境验证
+
+**验证脚本**: `scripts/verify_live_env.py`
+
+30 项自动检查：
+- ✅ Python 版本 >= 3.9
+- ✅ 核心依赖包（yfinance, pandas, numpy）
+- ✅ 项目模块（7 个核心模块）
+- ✅ SPL-7a 组件（7 个）
+- ✅ 数据源连接（Yahoo Finance）
+- ✅ LiveTrader 初始化
+- ✅ RiskMonitor 功能测试
+
+### 快速启动
+
+#### 1. 环境验证
+
+```bash
+cd /home/neal/mkcs
+
+# 安装依赖
+pip install -r requirements-live.txt
+
+# 验证环境
+python scripts/verify_live_env.py
+# 应该看到：🎉 所有验证通过！Live Trading 环境就绪
+```
+
+#### 2. 启动实时交易
+
+**Shadow 模式**（今晚测试，不下单）:
+```bash
+python scripts/run_live_with_monitoring.py \
+    --symbols AAPL MSFT \
+    --cash 100000 \
+    --interval 5m
+```
+
+**LIVE 模式**（明晚真实交易）:
+```bash
+python scripts/run_live_with_monitoring.py \
+    --symbols AAPL MSFT \
+    --cash 100000 \
+    --interval 5m \
+    --mode live
+```
+
+#### 3. 停止交易
+
+```
+Ctrl + C
+```
+
+系统会自动打印统计并关闭所有组件。
+
+### 运行时监控
+
+**正常输出示例**:
+```
+[数据获取] AAPL: 获取到 60 根K线
+[RiskMonitor] 已生成 10 个快照, 告警 0, Gating 0
+[信号] AAPL: BUY @ $175.50
+[订单通过] AAPL: 已通过风控
+[状态转换] AAPL: NORMAL → WARNING
+[告警] AAPL: [WARNING] 接近 Envelope - 回撤接近 70%
+```
+
+**输出文件**:
+- `data/live_monitoring/snapshots.jsonl` - 风险快照
+- `data/live_monitoring/risk_events.db` - 事件数据库
+- `data/live_monitoring/postmortem_*.md` - Post-mortem 报告（触发时生成）
+
+### 关键参数说明
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--symbols` | AAPL MSFT GOOGL | 交易标的 |
+| `--cash` | 100000 | 初始资金 |
+| `--interval` | 5m | 数据更新间隔（1m/5m/15m） |
+| `--mode` | paper | paper（模拟）或 live（真实） |
+| `--fast` | 5 | MA 快线周期 |
+| `--slow` | 20 | MA 慢线周期 |
+
+### 风险指标说明
+
+**实时监控的指标**:
+- **Rolling Returns**: 1d/5d/20d/60d 收益率
+- **Drawdown**: 当前回撤、最大回撤、回撤持续时间
+- **Spike**: 最大单步亏损、连续亏损次数、聚类评分
+- **Stability**: 稳定性评分、波动率
+- **Regime**: 市场状态（volatility_bucket, trend_strength, liquidity_level）
+- **Risk State**: NORMAL / WARNING / CRITICAL
+
+**告警阈值**:
+- Envelope 接近: 70%（WARNING），90%（CRITICAL）
+- Spike 激增: > 5 次（WARNING）
+- Gating 频率: > 20%（WARNING）
+- 单日亏损: > 3%（CRITICAL，Kill Switch）
+
+### 完整文档
+
+- **✅ P0 验收报告**: `docs/P0_ACCEPTANCE.md`
+- **📘 快速启动指南**: `docs/LIVE_TRADING_QUICKSTART.md`
+- **✅ SPL-7 验收**: `docs/SPL7_ACCEPTANCE_REPORT.md`
+
+---
+
 ## SPL-4 风险控制与组合加固系统
 
 ### 概述
