@@ -1,0 +1,406 @@
+# SPL-7a-C: 在线告警配置
+#
+# 告警规则定义（不等同于 gating）
+# 告警是早期预警，gating 是执行动作
+
+version: "1.0"
+
+# 全局配置
+global_config:
+  # 是否启用告警
+  enabled: true
+
+  # 默认冷却时间（秒）
+  default_cooldown_seconds: 3600  # 1 小时
+
+  # 最大告警频率（每小时）
+  max_alerts_per_hour: 10
+
+# 告警规则
+alert_rules:
+  # Envelope 相关告警
+  - rule_id: "envelope_approach"
+    name: "接近 Envelope"
+    description: "回撤接近 envelope 上限（70%）"
+    category: "envelope"
+
+    # 触发条件
+    metric_name: "envelope_usage"
+    condition: "greater_than"
+    threshold: 0.7
+
+    # 严重程度
+    severity: "warning"
+
+    # 告警渠道
+    channels:
+      - "log"
+      - "slack"
+
+    # 冷却时间
+    cooldown_seconds: 1800  # 30 分钟
+
+    # 额外配置
+    enabled: true
+    requires_context:
+      - "current_drawdown"
+      - "max_drawdown_limit"
+
+  - rule_id: "envelope_critical"
+    name: "Envelope 严重"
+    description: "回撤接近 envelope 硬上限（90%）"
+    category: "envelope"
+
+    metric_name: "envelope_usage"
+    condition: "greater_than"
+    threshold: 0.9
+
+    severity: "critical"
+
+    channels:
+      - "log"
+      - "slack"
+      - "webhook"
+      - "email"
+
+    cooldown_seconds: 600  # 10 分钟
+
+    enabled: true
+
+  # Spike 相关告警
+  - rule_id: "spike_surge"
+    name: "Spike 激增"
+    description: "近期 spike 次数异常增加（>5 次）"
+    category: "spike"
+
+    metric_name: "spike_count"
+    condition: "greater_than"
+    threshold: 5.0
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 3600
+
+    enabled: true
+
+  - rule_id: "consecutive_losses"
+    name: "连续亏损"
+    description: "连续亏损次数过多（>5 次）"
+    category: "spike"
+
+    metric_name: "consecutive_losses"
+    condition: "greater_than"
+    threshold: 5.0
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 1800
+
+    enabled: true
+
+  # Gating 相关告警
+  - rule_id: "gating_frequency_high"
+    name: "Gating 频率异常"
+    description: "Gating 触发频率过高（>20%）"
+    category: "gating"
+
+    metric_name: "gating_frequency"
+    condition: "greater_than"
+    threshold: 0.2
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 3600
+
+    enabled: true
+
+  - rule_id: "gating_disabled"
+    name: "策略被禁用"
+    description: "策略因 gating 规则被禁用"
+    category: "gating"
+
+    metric_name: "strategy_disabled"
+    condition: "equals"
+    threshold: 1.0
+
+    severity: "critical"
+
+    channels:
+      - "log"
+      - "slack"
+      - "email"
+
+    cooldown_seconds: 600
+
+    enabled: true
+
+  # Allocator 相关告警
+  - rule_id: "allocator_cap_hit"
+    name: "Allocator Cap 命中率异常"
+    description: "Allocator cap 命中频率过高（>30%）"
+    category: "allocator"
+
+    metric_name: "cap_hit_rate"
+    condition: "greater_than"
+    threshold: 0.3
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 3600
+
+    enabled: true
+
+  - rule_id: "allocator_fallback"
+    name: "Allocator 降级"
+    description: "Optimizer 失败，降级到规则分配"
+    category: "allocator"
+
+    metric_name: "allocator_fallback"
+    condition: "equals"
+    threshold: 1.0
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 1800
+
+    enabled: true
+
+  # 波动率相关告警
+  - rule_id: "volatility_rising"
+    name: "波动率上升"
+    description: "波动率呈上升趋势"
+    category: "volatility"
+
+    metric_name: "volatility_trend"
+    condition: "trend_up"
+    threshold: 0.0
+
+    severity: "info"
+
+    channels:
+      - "log"
+
+    cooldown_seconds: 7200  # 2 小时
+
+    enabled: true
+
+  - rule_id: "volatility_critical"
+    name: "波动率过高"
+    description: "波动率超过临界值（>4%）"
+    category: "volatility"
+
+    metric_name: "volatility_20d"
+    condition: "greater_than"
+    threshold: 0.04
+
+    severity: "critical"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 3600
+
+    enabled: true
+
+  # 状态转换告警
+  - rule_id: "state_to_warning"
+    name: "状态转为警告"
+    description: "风险状态转换为 WARNING"
+    category: "state"
+
+    metric_name: "risk_state"
+    condition: "equals"
+    threshold: 1.0  # WARNING
+
+    severity: "warning"
+
+    channels:
+      - "log"
+      - "slack"
+
+    cooldown_seconds: 1800
+
+    enabled: true
+
+  - rule_id: "state_to_critical"
+    name: "状态转为严重"
+    description: "风险状态转换为 CRITICAL"
+    category: "state"
+
+    metric_name: "risk_state"
+    condition: "equals"
+    threshold: 2.0  # CRITICAL
+
+    severity: "critical"
+
+    channels:
+      - "log"
+      - "slack"
+      - "webhook"
+      - "email"
+
+    cooldown_seconds: 600
+
+    enabled: true
+
+# 告警渠道配置
+channels:
+  # 日志配置
+  log:
+    enabled: true
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: "json"  # json, text
+    output_file: "logs/risk_alerts.log"
+
+  # Slack 配置
+  slack:
+    enabled: false  # 默认关闭，需要配置
+    webhook_url: "${SLACK_WEBHOOK_URL}"  # 环境变量
+    channel: "#risk-alerts"
+    username: "Risk Monitor"
+    icon_emoji: ":warning:"
+
+  # Webhook 配置
+  webhook:
+    enabled: false
+    url: "${ALERT_WEBHOOK_URL}"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer ${WEBHOOK_TOKEN}"
+
+  # 邮件配置
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    from_address: "risk-alerts@company.com"
+    to_addresses:
+      - "risk-team@company.com"
+      - "oncall@company.com"
+
+# 告警模板
+templates:
+  slack:
+    title_format: "[{severity}] {rule_name} - {strategy_id}"
+    message_format: |
+      *{rule_name}*
+      {description}
+
+      *指标*: {metric_name}
+      *当前值*: {current_value}
+      *阈值*: {threshold}
+      *时间*: {timestamp}
+
+      _上下文_: {context}
+
+  email:
+    subject_format: "[{severity}] Risk Alert: {rule_name}"
+    body_format: |
+      Risk Alert: {rule_name}
+
+      Strategy: {strategy_id}
+      Severity: {severity}
+      Timestamp: {timestamp}
+
+      Description: {description}
+
+      Metric: {metric_name}
+      Current Value: {current_value}
+      Threshold: {threshold}
+
+      Context:
+      {context}
+
+  webhook:
+    payload_format: |
+      {
+        "alert_id": "{alert_id}",
+        "timestamp": "{timestamp}",
+        "rule_id": "{rule_id}",
+        "strategy_id": "{strategy_id}",
+        "severity": "{severity}",
+        "title": "{title}",
+        "message": "{message}",
+        "metric_name": "{metric_name}",
+        "current_value": {current_value},
+        "threshold": {threshold},
+        "context": {context}
+      }
+
+# 告警聚合配置
+aggregation:
+  # 时间窗口内相同规则的告警合并
+  enabled: true
+  window_seconds: 300  # 5 分钟
+
+  # 相同类别的告警合并
+  group_by_category: true
+
+  # 最大聚合数量
+  max_aggregated_alerts: 5
+
+# 告警升级配置
+escalation:
+  # 告警未确认时的升级策略
+  enabled: true
+
+  # 升级时间线
+  escalation_timeline:
+    - after_minutes: 30
+      action: "resend_slack"
+    - after_minutes: 60
+      action: "send_email"
+    - after_minutes: 120
+      action: "send_webhook"
+    - after_minutes: 180
+      action: "call_oncall"
+
+  # 工作时间（工作时间外立即升级）
+  working_hours:
+    enabled: true
+    start: "09:00"
+    end: "18:00"
+    timezone: "UTC"
+    weekends: false
+
+# 告警抑制配置
+suppression:
+  # 已知的维护窗口
+  maintenance_windows:
+    - start: "2026-02-01T00:00:00Z"
+      end: "2026-02-01T02:00:00Z"
+      reason: "Scheduled maintenance"
+
+  # 自动抑制规则
+  auto_suppression:
+    # 测试环境抑制 INFO 级别告警
+    - condition: "environment == 'test' and severity == 'info'"
+      enabled: false
+
+    # 低优先级策略抑制 WARNING 级别
+    - condition: "strategy_priority == 'low' and severity == 'warning'"
+      enabled: true

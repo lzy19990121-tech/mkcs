@@ -1,0 +1,303 @@
+# SPL-7a-A: 在线监控指标配置
+#
+# 定义运行态需要采集的所有风险指标
+# 与 SPL-4/5/6 的口径完全一致
+
+version: "1.0"
+
+# 全局配置
+global_config:
+  # 更新频率
+  update_frequency: "1d"  # daily (可选: 1h, 5m, 1d)
+
+  # 缓冲区大小
+  buffer_size: 252  # 交易日（约1年）
+
+  # 数据保留期
+  retention_days: 365
+
+  # 时区
+  timezone: "UTC"
+
+# 策略级指标配置
+strategy_metrics:
+  # 滚动收益指标
+  rolling_returns:
+    enabled: true
+    windows:
+      - name: "window_1d_return"
+        days: 1
+        description: "1日滚动收益"
+      - name: "window_5d_return"
+        days: 5
+        description: "5日滚动收益"
+      - name: "window_20d_return"
+        days: 20
+        description: "20日滚动收益"
+      - name: "window_60d_return"
+        days: 60
+        description: "60日滚动收益"
+
+    # 分位数收益
+    percentiles:
+      - 5
+      - 25
+      - 75
+      - 95
+
+  # 回撤指标（与 SPL-4 一致）
+  drawdown:
+    enabled: true
+    metrics:
+      - name: "current_drawdown"
+        description: "当前回撤"
+      - name: "max_drawdown"
+        description: "最大回撤"
+      - name: "drawdown_duration"
+        description: "回撤持续天数"
+      - name: "avg_drawdown"
+        description: "平均回撤"
+      - name: "drawdown_count"
+        description: "回撤次数"
+      - name: "severe_drawdown_count"
+        description: "严重回撤次数（>5%）"
+
+    # 与 SPL-4 envelope 的对齐
+    envelope_alignment:
+      severe_threshold: 0.05  # 5%
+      critical_threshold: 0.10  # 10%
+
+  # 尖刺指标（与 SPL-4 spike 一致）
+  spike_metrics:
+    enabled: true
+    metrics:
+      - name: "max_single_loss"
+        description: "最大单步亏损"
+      - name: "max_single_gain"
+        description: "最大单步收益"
+      - name: "max_consecutive_losses"
+        description: "最大连续亏损次数"
+      - name: "current_consecutive_losses"
+        description: "当前连续亏损次数"
+      - name: "loss_clustering_score"
+        description: "损失聚类评分"
+      - name: "recent_spike_count"
+        description: "近期尖刺次数（20天内）"
+
+    # 与 SPL-4 spike guard 的对齐
+    spike_guard_alignment:
+      spike_threshold_std: 2.0  # 标准差倍数
+      spike_window_days: 20
+      loss_clustering_threshold: 60.0  # 百分比
+
+  # 稳定性指标（与 SPL-5a stability 一致）
+  stability_metrics:
+    enabled: true
+    metrics:
+      - name: "stability_score"
+        description: "稳定性评分（0-100）"
+      - name: "volatility_1d"
+        description: "1日波动率"
+      - name: "volatility_5d"
+        description: "5日波动率"
+      - name: "volatility_20d"
+        description: "20日波动率"
+      - name: "return_std_1d"
+        description: "1日收益标准差"
+      - name: "return_std_5d"
+        description: "5日收益标准差"
+      - name: "return_std_20d"
+        description: "20日收益标准差"
+
+    # 与 SPL-5a gating threshold 的对齐
+    gating_threshold_alignment:
+      low_volatility: 0.01  # 1%
+      med_volatility: 0.02  # 2%
+      high_volatility: 0.04  # 4%
+      min_stability_score: 50.0  # 最小稳定性评分
+
+  # 市场状态特征（与 SPL-5a regime 一致）
+  regime_features:
+    enabled: true
+    features:
+      - name: "volatility_bucket"
+        type: "categorical"
+        values: ["low", "med", "high"]
+        description: "波动率分桶"
+
+      - name: "trend_strength"
+        type: "categorical"
+        values: ["weak", "strong"]
+        description: "趋势强度"
+
+      - name: "liquidity_level"
+        type: "categorical"
+        values: ["low", "high"]
+        description: "流动性水平"
+
+      - name: "realized_volatility"
+        type: "continuous"
+        description: "实现波动率"
+
+      - name: "adx"
+        type: "continuous"
+        description: "平均趋向指数"
+
+      - name: "spread_cost"
+        type: "continuous"
+        description: "价差成本代理"
+
+    # 与 SPL-5a regime bucket 的对齐
+    regime_alignment:
+      volatility_buckets:
+        low: [0, 0.015]
+        med: [0.015, 0.025]
+        high: [0.025, 1.0]
+
+      adx_buckets:
+        weak: [0, 25]
+        strong: [25, 100]
+
+  # Gating 事件
+  gating_events:
+    enabled: true
+    event_types:
+      - "ALLOW"
+      - "GATE"
+      - "REDUCE"
+      - "DISABLE"
+
+    # 保留最近的事件数量
+    max_recent_events: 10
+
+    # 事件必填字段
+    required_fields:
+      - "event_id"
+      - "timestamp"
+      - "strategy_id"
+      - "action"
+      - "reason"
+
+    # 可选字段
+    optional_fields:
+      - "rule_id"
+      - "threshold"
+      - "current_value"
+      - "regime_features"
+
+  # Allocator 事件
+  allocator_events:
+    enabled: true
+    event_types:
+      - "rebalance"
+      - "cap_hit"
+      - "fallback"
+
+    allocator_types:
+      - "rules"
+      - "optimizer_v2"
+
+    # 保留最近的事件数量
+    max_recent_events: 10
+
+    # 事件必填字段
+    required_fields:
+      - "event_id"
+      - "timestamp"
+      - "allocator_type"
+      - "action"
+
+    # 可选字段
+    optional_fields:
+      - "old_weights"
+      - "new_weights"
+      - "weight_changes"
+      - "reason"
+      - "constraints_hit"
+
+# 组合级指标配置
+portfolio_metrics:
+  # 组合收益指标
+  portfolio_returns:
+    enabled: true
+    windows:
+      - name: "portfolio_return_1d"
+        days: 1
+      - name: "portfolio_return_5d"
+        days: 5
+      - name: "portfolio_return_20d"
+        days: 20
+
+    # 计算方法
+    calculation_method: "weighted_sum"  # 加权求和
+
+  # 组合风险指标
+  portfolio_risk:
+    enabled: true
+    metrics:
+      - name: "portfolio_var"
+        description: "组合方差"
+        alignment: "SPL-6b risk_budget_constraints"
+
+      - name: "portfolio_cvar_95"
+        description: "条件风险价值（95%）"
+        alignment: "SPL-6b risk_proxies"
+
+      - name: "portfolio_max_dd"
+        description: "最大回撤"
+        alignment: "SPL-4 envelope"
+
+  # 协同指标（与 SPL-4/5 一致）
+  co_movement_metrics:
+    enabled: true
+    metrics:
+      - name: "avg_correlation"
+        description: "平均相关性"
+        window_days: 60
+
+      - name: "tail_correlation"
+        description: "尾部相关性（压力期）"
+        stress_threshold: -0.02  # -2% 收益为压力期
+        alignment: "SPL-4 co-crash guard"
+
+      - name: "co_crash_count"
+        description: "同时尾部亏损次数"
+        threshold: -0.02  # -2%
+        min_strategies: 2  # 至少 2 个策略
+        alignment: "SPL-4 co-crash guard"
+
+# 数据版本控制
+schema_versioning:
+  current_version: "1.0"
+
+  # 版本兼容性
+  compatibility:
+    "1.0": ["1.0"]
+
+  # 字段变更日志
+  changelog:
+    - version: "1.0"
+      date: "2026-02-01"
+      changes:
+        - "初始版本：定义所有运行态风险指标"
+        - "与 SPL-4/5/6 完全对齐"
+
+# 数据输出配置
+output_config:
+  # 序列化格式
+  format: "json"  # json / msgpack / parquet
+
+  # 压缩
+  compression: false  # true / false
+
+  # 输出路径
+  output_dir: "outputs/online_monitoring"
+
+  # 文件命名模式
+  file_pattern: "risk_signal_{strategy_id}_{timestamp}.json"
+
+  # 滚动文件策略
+  rolling_files:
+    enabled: true
+    max_file_size_mb: 100
+    retention_files: 10
