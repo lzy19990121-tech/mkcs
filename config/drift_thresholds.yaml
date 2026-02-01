@@ -1,0 +1,217 @@
+# SPL-6a-C: 漂移阈值与分级响应配置
+
+# 漂移阈值定义（用于 GREEN/YELLOW/RED 分级）
+thresholds:
+  # 分布型指标阈值
+  distribution:
+    psi:
+      green: 0.1      # PSI < 0.1: 无显著漂移
+      yellow: 0.25    # 0.1 <= PSI < 0.25: 轻微漂移
+      # PSI >= 0.25: 显著漂移 (RED)
+
+    js_divergence:
+      green: 0.1
+      yellow: 0.2
+
+    bucket_shift:
+      green: 0.05     # 桶占比变化 < 5%
+      yellow: 0.1     # 5% <= 变化 < 10%
+
+    ks_test:
+      green: 0.1      # KS statistic < 0.1
+      yellow: 0.2
+
+    wasserstein:
+      green: 0.1
+      yellow: 0.2
+
+  # 统计型指标阈值
+  statistical:
+    percentile_shift:
+      green: 0.02     # 分位数变化 < 2%
+      yellow: 0.05    # 2% <= ��化 < 5%
+
+    tail_change:
+      green: 0.01     # 尾部变化 < 1%
+      yellow: 0.03    # 1% <= 变化 < 3%
+
+    absolute_change:
+      green: 0.01     # 绝对变化 < 0.01
+      yellow: 0.02
+
+    relative_change:
+      green: 0.1      # 相对变化 < 10%
+      yellow: 0.2     # 10% <= 变化 < 20%
+
+    max_drawdown:
+      green: 0.01     # MDD 变化 < 1%
+      yellow: 0.02    # 1% <= 变化 < 2%
+
+    cvar_change:
+      green: 0.02     # CVaR 变化 < 2%
+      yellow: 0.05    # 2% <= 变化 < 5%
+
+  # 行为指标阈值
+  behavior:
+    gating_trigger_rate:
+      green: 0.05     # 触发率变化 < 5%
+      yellow: 0.1     # 5% <= 变化 < 10%
+      critical: 0.3   # 触发率 > 30% 为严重异常
+
+    avg_downtime:
+      green: 1.0      # 停机天数变化 < 1天
+      yellow: 2.0     # 1天 <= 变化 < 2天
+
+    cap_hit_rate:
+      green: 0.05     # cap 命中率变化 < 5%
+      yellow: 0.1     # 5% <= 变化 < 10%
+
+    regime_switch_frequency:
+      green: 0.5      # 切换频率变化 < 0.5次/天
+      yellow: 1.0     # 0.5 <= 变化 < 1.0次/天
+
+  # 组合指标阈值
+  portfolio:
+    portfolio_correlation:
+      green: 0.05     # 相关性变化 < 0.05
+      yellow: 0.1     # 0.05 <= 变化 < 0.1
+      critical: 0.3   # 相关性 > 0.3 为严重
+
+    co_crash_frequency:
+      green: 0.5      # co-crash 频率变化 < 0.5
+      yellow: 1.0     # 0.5 <= 变化 < 1.0
+
+    max_simultaneous_losses:
+      green: 0        # 最大同时亏损不变
+      yellow: 1       # 增加 1 个
+
+# 再标定触发条件
+recalibration_trigger:
+  # 基本条件：必须满足以下任一
+  conditions:
+    # 条件1: RED 状态持续检测
+    consecutive_red:
+      enabled: true
+      count: 3        # 连续 3 次检测到 RED
+      window_days: 7  # 在 7 天内
+
+    # 条件2: 关键风险指标退化
+    key_risk_degradation:
+      enabled: true
+      metrics:
+        - name: "max_drawdown"
+          threshold: 0.05  # MDD 恶化 > 5%
+        - name: "cvar"
+          threshold: 0.1   # CVaR 恶化 > 10%
+        - name: "worst_case_returns"
+          threshold: 0.1   # worst-case 恶化 > 10%
+
+    # 条件3: 多个对象同时 YELLOW
+    multiple_yellow:
+      enabled: true
+      count: 5         # >= 5 个对象同时 YELLOW
+      ratio: 0.3      # 占总对象数的 30%
+
+    # 条件4: 组合层面协同爆炸
+    portfolio_co_crash:
+      enabled: true
+      co_crash_count: 3    # 同时 >= 3 个策略亏损
+      frequency: 2         # 在最近 30 天内发生 >= 2 次
+
+  # 保护机制：防止频繁触发
+  protections:
+    min_interval_days: 30  # 两次再标定之间最少间隔 30 天
+    cooldown_after_recalibration: 60  # 再标定后 60 天内不再触发
+    require_baseline_rollback: true   # 必须有 baseline 可以回滚
+
+# 分级响应策略
+response_policy:
+  GREEN:
+    action: "none"
+    message: "No significant drift detected"
+    monitoring: "normal"
+
+  YELLOW:
+    action: "alert"
+    message: "Minor drift detected - monitoring closely"
+    monitoring: "enhanced"
+    notifications:
+      - type: "log"
+        level: "warning"
+      - type: "report"
+        frequency: "daily"
+
+  RED:
+    action: "candidate_for_recalibration"
+    message: "Significant drift detected - evaluating recalibration"
+    monitoring: "intensive"
+    notifications:
+      - type: "log"
+        level: "error"
+      - type: "alert"
+        channel: "slack"
+      - type: "report"
+        frequency: "realtime"
+    triggers:
+      - "create_recalibration_ticket"
+      - "run_candidate_evaluation"
+
+  CRITICAL:
+    action: "immediate_investigation"
+    message: "Critical drift - may require emergency intervention"
+    monitoring: "continuous"
+    notifications:
+      - type: "alert"
+        channel: "slack"
+        priority: "high"
+      - type: "email"
+        recipients: ["risk-team@company.com"]
+    triggers:
+      - "create_emergency_ticket"
+      - "disable_affected_strategies"
+
+# 漂移检测对象优先级
+priority_levels:
+  critical:
+    - "risk_behavior.max_drawdown"
+    - "risk_behavior.cvar"
+    - "risk_behavior.worst_case_returns"
+    - "portfolio_behavior.co_crash_frequency"
+    - "portfolio_behavior.max_simultaneous_losses"
+
+  high:
+    - "input_distribution.volatility"
+    - "input_distribution.returns"
+    - "model_behavior.gating_trigger_rate"
+    - "portfolio_behavior.portfolio_correlation"
+
+  medium:
+    - "input_distribution.adx"
+    - "input_distribution.spread_cost"
+    - "risk_behavior.spike_metrics"
+    - "model_behavior.avg_downtime"
+
+  low:
+    - "model_behavior.cap_hit_rate"
+    - "model_behavior.regime_switch_frequency"
+    - "portfolio_behavior.correlation_spike_frequency"
+
+# 检测频率配置
+detection_schedule:
+  frequency: "daily"           # 每天检测
+  time: "00:00 UTC"            # 每天 00:00 UTC 运行
+  lookback_days: 90            # 保留 90 天历史数据用于基线
+
+  # 每周汇总报告
+  weekly_summary:
+    enabled: true
+    day: "Monday"
+    time: "08:00 UTC"
+
+  # 每月全面评估
+  monthly_full_evaluation:
+    enabled: true
+    day: 1
+    time: "00:00 UTC"
+    include_all_objects: true
+    generate_recalibration_report: true

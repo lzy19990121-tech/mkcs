@@ -1,0 +1,206 @@
+# SPL-6a Drift Detection Configuration
+# 定义需要漂移检测的对象及其统计口径
+
+drift_objects:
+  # A1. 输入分布漂移（市场状态特征）
+  input_distribution:
+    # Returns 分布
+    returns:
+      metric_type: "distribution"
+      description: "策略收益分布"
+      window_days: [30, 90]  # 检测窗口：30d vs 90d baseline
+      buckets:
+        - name: "large_loss"
+          range: [-inf, -0.05]  # <-5%
+        - name: "moderate_loss"
+          range: [-0.05, -0.02]  # -5% to -2%
+        - name: "small_loss"
+          range: [-0.02, 0]
+        - name: "small_gain"
+          range: [0, 0.02]
+        - name: "moderate_gain"
+          range: [0.02, 0.05]
+        - name: "large_gain"
+          range: [0.05, inf]
+      metrics: ["psi", "js_divergence", "bucket_shift"]
+
+    # Realized Volatility
+    volatility:
+      metric_type: "distribution"
+      description: "实现波动率"
+      window_days: [30, 90]
+      buckets:
+        - name: "low"
+          range: [0, 0.15]  # <15%
+        - name: "medium"
+          range: [0.15, 0.25]
+        - name: "high"
+          range: [0.25, 0.40]
+        - name: "extreme"
+          range: [0.40, inf]
+      metrics: ["psi", "ks_test", "bucket_shift"]
+
+    # ADX（趋势强度）
+    adx:
+      metric_type: "distribution"
+      description: "平均趋向指数"
+      window_days: [30, 90]
+      buckets:
+        - name: "weak_trend"
+          range: [0, 20]
+        - name: "moderate_trend"
+          range: [20, 30]
+        - name: "strong_trend"
+          range: [30, inf]
+      metrics: ["psi", "bucket_shift"]
+
+    # Spread/Cost Proxy
+    spread_cost:
+      metric_type: "distribution"
+      description: "价差/成本代理（买卖价差占比）"
+      window_days: [30, 90]
+      buckets:
+        - name: "low"
+          range: [0, 0.001]  # <0.1%
+        - name: "medium"
+          range: [0.001, 0.005]
+        - name: "high"
+          range: [0.005, inf]
+      metrics: ["psi", "wasserstein", "bucket_shift"]
+
+  # A2. 风险行为漂移（worst-case指标）
+  risk_behavior:
+    # Worst-case Returns
+    worst_case_returns:
+      metric_type: "statistical"
+      description: "最坏情况收益分布"
+      window_days: [30, 90]
+      percentiles: [5, 10, 25, 50, 75, 90, 95]
+      metrics: ["percentile_shift", "tail_change"]
+
+    # CVaR (Conditional Value at Risk)
+    cvar:
+      metric_type: "statistical"
+      description: "条件风险价值"
+      window_days: [30, 90]
+      confidence_levels: [0.90, 0.95, 0.99]
+      metrics: ["absolute_change", "relative_change"]
+
+    # Maximum Drawdown
+    max_drawdown:
+      metric_type: "statistical"
+      description: "最大回撤"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "relative_change", "threshold_breach"]
+
+    # Drawdown Duration
+    drawdown_duration:
+      metric_type: "distribution"
+      description: "回撤持续时长分布"
+      window_days: [30, 90]
+      buckets:
+        - name: "short"
+          range: [0, 5]  # 0-5天
+        - name: "medium"
+          range: [5, 15]
+        - name: "long"
+          range: [15, 30]
+        - name: "extended"
+          range: [30, inf]
+      metrics: ["psi", "tail_ratio_change"]
+
+    # Spike Metrics
+    spike_metrics:
+      max_single_loss:
+        metric_type: "statistical"
+        description: "最大单步亏损"
+        window_days: [30, 90]
+        metrics: ["absolute_change", "threshold_breach"]
+
+      loss_clustering:
+        metric_type: "statistical"
+        description: "连亏统计"
+        window_days: [30, 90]
+        metrics: ["max_consecutive_change", "p95_consecutive_change"]
+
+  # A3. 模型/规则漂移（gating行为）
+  model_behavior:
+    # Gating 触发率
+    gating_trigger_rate:
+      metric_type: "statistical"
+      description: "Gating触发频率"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "relative_change", "rate_breach"]
+
+    # 平均停机时长
+    avg_downtime:
+      metric_type: "statistical"
+      description: "Gating停机的平均天数"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "relative_change"]
+
+    # Cap 命中率（达到上限的频率）
+    cap_hit_rate:
+      metric_type: "statistical"
+      description: "风险预算cap命中频率"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "threshold_breach"]
+
+    # Regime 切换频率
+    regime_switch_frequency:
+      metric_type: "statistical"
+      description: "市场状态切换频率（per day）"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "stability_check"]
+
+  # A4. 组合层面漂移（多策略协同）
+  portfolio_behavior:
+    # 组合相关性
+    portfolio_correlation:
+      metric_type: "statistical"
+      description: "策略间平均相关性"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "threshold_breach", "tail_correlation_change"]
+
+    # Co-crash 频率
+    co_crash_frequency:
+      metric_type: "statistical"
+      description: "同时尾部亏损频率（>=2策略）"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "relative_change", "threshold_breach"]
+
+    # Correlation Spike 频率
+    correlation_spike_frequency:
+      metric_type: "statistical"
+      description: "相关性激增事件频率"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "threshold_breach"]
+
+    # 最大同时亏损数
+    max_simultaneous_losses:
+      metric_type: "statistical"
+      description: "最大同时亏损策略数"
+      window_days: [30, 90]
+      metrics: ["absolute_change", "threshold_breach"]
+
+# 全局配置
+global_config:
+  # 时间窗口配置
+  baseline_window_days: 90  # 基线窗口（历史参考）
+  detection_window_days: 30  # 检测窗口（当前观察）
+  min_samples: 100  # 最小样本量
+
+  # 漂移检测频率
+  detection_frequency: "daily"  # daily/weekly
+
+  # 分桶一致性（regime buckets）
+  regime_buckets:
+    volatility: ["low", "med", "high"]
+    adx: ["weak", "strong"]
+    spread_cost: ["low", "high"]
+
+  # 数据源
+  data_sources:
+    replay_dir: "runs/"
+    baseline_dir: "baselines/risk/"
+    calibration_config: "config/adaptive_gating_params.json"
