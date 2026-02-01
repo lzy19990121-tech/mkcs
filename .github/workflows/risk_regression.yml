@@ -7,8 +7,9 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  risk_regression:
+  spl4_risk_regression:
     runs-on: ubuntu-latest
+    name: SPL-4 Risk Regression Tests
 
     steps:
     - name: Checkout code
@@ -28,7 +29,7 @@ jobs:
         # Install essential packages
         pip install pandas numpy
 
-    - name: Run Risk Regression Tests
+    - name: Run SPL-4 Risk Regression Tests
       run: |
         python tests/risk_regression/run_risk_regression.py \
           --replay-dir runs \
@@ -36,32 +37,132 @@ jobs:
           --output-dir reports/risk_regression
       continue-on-error: false
 
-    - name: Upload test report
+    - name: Upload SPL-4 test report
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: risk-regression-report
+        name: spl4-risk-regression-report
         path: reports/risk_regression/
         retention-days: 30
 
+  spl5_ci_gate:
+    runs-on: ubuntu-latest
+    name: SPL-5 CI Gate Tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Full history for commit hash
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt || true
+        # Install essential packages
+        pip install pandas numpy
+
+    - name: Run SPL-5 CI Gate Tests
+      run: |
+        python tests/ci_gate_test.py
+      continue-on-error: false  # FAIL will block the PR
+
+    - name: Upload SPL-5 CI report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: spl5-ci-gate-report
+        path: reports/run_manifest.json
+        retention-days: 30
+
+    - name: Check CI Gate Result
+      if: always()
+      run: |
+        if [ -f reports/run_manifest.json ]; then
+          if grep -q '"block_release": true' reports/run_manifest.json; then
+            echo "❌ CI Gate FAILED - Release is blocked"
+            exit 1
+          else
+            echo "✅ CI Gate PASSED"
+          fi
+        fi
+
+  comment_pr:
+    runs-on: ubuntu-latest
+    name: Comment PR with Results
+    needs: [spl4_risk_regression, spl5_ci_gate]
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Download SPL-4 report
+      uses: actions/download-artifact@v3
+      with:
+        name: spl4-risk-regression-report
+        path: reports/spl4/
+
+    - name: Download SPL-5 report
+      uses: actions/download-artifact@v3
+      with:
+        name: spl5-ci-gate-report
+        path: reports/spl5/
+
     - name: Comment PR with results
-      if: github.event_name == 'pull_request'
       uses: actions/github-script@v6
       with:
         script: |
           const fs = require('fs');
-          try {
-            const reportPath = 'reports/risk_regression/report.md';
-            if (fs.existsSync(reportPath)) {
-              const report = fs.readFileSync(reportPath, 'utf8');
+          let body = '## Risk Regression Test Results\n\n';
 
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `## Risk Regression Test Results\n\n${report}`
-              });
+          // SPL-4 Results
+          try {
+            const spl4Path = 'reports/spl4/report.md';
+            if (fs.existsSync(spl4Path)) {
+              const spl4Report = fs.readFileSync(spl4Path, 'utf8');
+              body += '### SPL-4 Risk Regression\n\n' + spl4Report + '\n\n';
             }
           } catch (error) {
-            console.log('Could not post comment:', error.message);
+            body += '### SPL-4 Risk Regression\n\n⚠️ Report not available\n\n';
           }
+
+          // SPL-5 Results
+          try {
+            const spl5Path = 'reports/spl5/run_manifest.json';
+            if (fs.existsSync(spl5Path)) {
+              const spl5Data = JSON.parse(fs.readFileSync(spl5Path, 'utf8'));
+              const blockRelease = spl5Data.block_release;
+              const passCount = spl5Data.tests?.filter(t => t.status === 'PASS').length || 0;
+              const failCount = spl5Data.tests?.filter(t => t.status === 'FAIL').length || 0;
+              const skipCount = spl5Data.tests?.filter(t => t.status === 'SKIP').length || 0;
+
+              body += '### SPL-5 CI Gate\n\n';
+              body += `- **Total Tests**: ${spl5Data.tests?.length || 0}\n`;
+              body += `- **Passed**: ${passCount}\n`;
+              body += `- **Failed**: ${failCount}\n`;
+              body += `- **Skipped**: ${skipCount}\n`;
+              body += `- **Block Release**: ${blockRelease ? '🚫 YES' : '✅ NO'}\n\n`;
+
+              if (failCount > 0) {
+                body += '**Failed Tests:**\n';
+                spl5Data.tests.filter(t => t.status === 'FAIL').forEach(t => {
+                  body += `- \`${t.name}\`: ${t.message}\n`;
+                });
+              }
+            }
+          } catch (error) {
+            body += '### SPL-5 CI Gate\n\n⚠️ Report not available\n\n';
+          }
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
