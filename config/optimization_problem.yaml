@@ -1,0 +1,212 @@
+# SPL-6b-A: 优化问题定义 (Optimization Problem Specification)
+
+# 优化问题配置
+optimization_problem:
+  # 问题描述
+  name: "constrained_portfolio_allocation"
+  description: "在风险约束下最大化组合收益的优化分配器"
+
+  # 决策变量（Decision Variables）
+  decision_variables:
+    strategy_weights:
+      type: "continuous"  # 连续变量 [0, 1]
+      description: "每个策略的权重"
+      dimension: "n_strategies"  # ��量维度等于策略数量
+
+    # 可选：开关变量（暂时不实现二进制优化）
+    strategy_switches:
+      type: "binary"
+      enabled: false  # 暂不启用二进制变量
+      description: "每个策略的开关（on/off）"
+
+  # 目标函数（Objective Function）
+  objective:
+    primary:
+      name: "maximize_expected_return"
+      description: "最大化预期收益"
+      formula: "maximize w^T * mu"
+      where:
+        w: "策略权重向量"
+        mu: "预期收益向量（基于历史或近窗估计）"
+
+    secondary:
+      name: "minimize_risk"
+      description: "最小化风险（作为次要目标或约束）"
+      formula: "minimize w^T * Sigma * w"
+      where:
+        Sigma: "协方差矩阵"
+
+    penalty_terms:
+      turnover_penalty:
+        enabled: true
+        weight: 0.01  # 换手惩罚权重
+        description: "减少频繁大调仓"
+
+      smoothness_penalty:
+        enabled: true
+        weight: 0.05  # 权重平滑惩罚
+        description: "避免权重抖动"
+
+  # 硬约束（Hard Constraints）
+  constraints:
+    # 1. 收益约束（Worst-case 下界）
+    return_constraints:
+      - name: "P95_return_lower_bound"
+        threshold: -0.10  # -10%
+        description: "组合 P95 收益不低于 -10%"
+
+      - name: "P99_return_lower_bound"
+        threshold: -0.15  # -15%
+        description: "组合 P99 收益不低于 -15%"
+
+    # 2. 风险约束（MDD/Duration 上界）
+    risk_constraints:
+      - name: "max_drawdown_upper_bound"
+        threshold: 0.12  # 12%
+        description: "最大回撤不超过 12%"
+
+      - name: "drawdown_duration_upper_bound"
+        threshold: 20  # 天
+        description: "回撤持续时长不超过 20 天"
+
+    # 3. 权重约束（Cap + Leverage）
+    weight_constraints:
+      - name: "weight_bounds"
+        description: "每个策略的权重范围"
+        lower: 0.0  # 最小权重 0%
+        upper: 1.0  # 最大权重 100%
+
+      - name: "sum_weights"
+        description: "权重总和约束"
+        operator: "equal"
+        value: 1.0  # 完全投资（无现金）
+
+      - name: "max_single_weight"
+        description: "单个策略最大权重"
+        threshold: 0.4  # 任何策略不超过 40%"
+
+      - name: "min_single_weight"
+        description: "单个策略最小权重"
+        threshold: 0.05  # 至少 5% 分配给每个开启的策略
+
+    # 4. 协同爆炸约束（Correlation-aware）
+    correlation_constraints:
+      - name: "tail_correlation_limit"
+        threshold: 0.5  # 压力期相关性不超过 0.5
+        description: "压力期平均相关性上限"
+
+      - name: "co_crash_limit"
+        threshold: 2  # 最多 2 个策略同时尾部亏损
+        description: "同时尾部亏损策略数上限"
+
+    # 5. 风险预算约束（来自 SPL-5b）
+    risk_budget_constraints:
+      - name: "total_var_budget"
+        threshold: 0.08  # 总方差预算 8%
+        description: "组合总方差不超过预算"
+
+      - name: "strategy_var_budget"
+        threshold: 0.03  # 单策略方差预算 3%
+        description: "每个策略的方差预算"
+
+    # 6. 权重平滑约束（避免抖动）
+    smoothness_constraints:
+      - name: "max_weight_change"
+        threshold: 0.2  # 单次最大权重变化 20%
+        description: "相邻两次调仓的权重变化限制"
+
+      - name: "turnover_limit"
+        threshold: 0.5  # 月度换手率不超过 50%
+        description: "限制频繁调仓"
+
+# 优化器配置
+optimizer_config:
+  # 优化方法选择
+  method: "quadratic_programming"  # 二次规划（凸优化）
+  fallback: "projected_gradient"    # 降级方法：投影梯度下降
+
+  # 求解器配置
+  solver:
+    tolerance: 1e-6  # 收敛容差
+    max_iterations: 1000  # 最大迭代次数
+    verbose: true  # 输出求解日志
+
+  # 初始权重策略
+  initial_weights:
+    strategy: "equal_weight"  # 等权重初始化
+    # 或 "risk_parity"（风险平价）
+    # 或 "inverse_volatility"（倒数波动率）
+
+  # 约束处理
+  constraint_handling:
+    method: "penalty"  # 惩罚法（软约束）
+    penalty_multiplier: 1000.0  # 惩罚系数
+    barrier_parameter: 0.1  # 屏障参数（用于障碍法）
+
+  # 无解与降级策略
+  fallback:
+    enabled: true
+    on_infeasible: "relax_constraints"  # 无解时放松约束
+    relaxation_order:
+      - "smoothness_constraints"  # 优先放松平滑约束
+      - "weight_constraints"       # 其次放松权重约束
+      - "correlation_constraints"   # 再放松相关性约束
+      - "risk_budget_constraints"   # 最后放松风险预算
+
+    on_solver_failure: "use_rules_allocator"  # 求解器失败时使用 SPL-5b 规则分配器
+
+# 输出配置
+output_config:
+  # 诊断信息
+  diagnostics:
+    enabled: true
+    include:
+      - "binding_constraints"  # 绑定约束
+      - "constraint_violations"  # 约束违反
+      - "objective_value"  # 目标函数值
+      - "optimization_status"  # 优化状态
+      - "solver_iterations"  # 求解迭代次数
+      - "computation_time"  # 计算时间
+
+  # 可解释性输出
+  interpretability:
+    enabled: true
+    include:
+      - "final_weights"  # 最终权重
+      - "weight_ranking"  # 权重排名
+      - "risk_contributions"  # 风险贡献
+      - "expected_return"  # 预期收益
+      - "expected_risk"  # 预期风险
+      - "marginal_contributions"  # 边际贡献
+
+  # 与 SPL-5b 的兼容性
+  compatibility:
+    mode: "enhancement"  # "enhancement" 或 "replacement"
+    fallback_to_rules: true  # 优化失败时回退到 SPL-5b 规则
+    preserve_budgets: true  # 保持 SPL-5b 的风险预算定义
+
+# 数据源配置
+data_config:
+  # 收益估计
+  expected_return:
+    method: "historical_mean"  # 历史均值
+    window_days: 90  # 使用最近 90 天数据
+    min_samples: 30  # 最少样本数
+
+  # 风险估计
+  covariance:
+    method: "sample_covariance"  # 样本协方差
+    window_days: 90
+    shrinkage: true  # 使用压缩估计（Ledoit-Wolf）
+
+  # 压力期样本
+  stress_periods:
+    source: "spl4_worst_windows"  # 使用 SPL-4 识别的 worst windows
+    min_periods: 5  # 至少 5 个压力期
+    weight: 2.0  # 压力期权重（是正常期的 2 倍）
+
+  # 相关性估计
+  correlation:
+    method: "pearson"
+    window_days: 60
+    min_periods: 3
