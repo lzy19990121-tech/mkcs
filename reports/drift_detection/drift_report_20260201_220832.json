@@ -1,0 +1,22 @@
+{
+  "report_date": "2026-02-01T22:08:32.861838",
+  "baseline_run_id": "exp_47c6a02c",
+  "current_run_id": "exp_0d71ac54",
+  "overall_status": "RED",
+  "metrics": {
+    "mean": {
+      "baseline": 0.0,
+      "current": 635.635294117647,
+      "change": 635.635294117647,
+      "change_pct": 6356352941176.471
+    },
+    "std": {
+      "baseline": 0.0,
+      "current": 456.64046475147484,
+      "change": 456.64046475147484,
+      "change_pct": 4566404647514.748
+    }
+  },
+  "recalibration_triggered": true,
+  "recalibration_reason": "\u5747\u503c\u53d8\u5316 635635294117647.1%"
+}
