@@ -1,0 +1,24 @@
+# CODEOWNERS - 指定文件变更��审批人
+
+# 风险相关文件需要 Risk Team Lead 审批
+/config/adaptive_gating_params.json @risk-team-lead
+/baselines/risk/ @risk-team-lead
+
+# SPL-4/5/6 核心风险模块需要审批
+/analysis/risk_envelope.py @risk-team-lead
+/analysis/adaptive_gating.py @risk-team-lead
+/analysis/adaptive_calibration.py @risk-team-lead
+/analysis/portfolio/budget_allocator.py @risk-team-lead
+/analysis/portfolio_optimizer_v2.py @risk-team-lead
+/analysis/pipeline_optimizer_v2.py @risk-team-lead
+
+# CI gate 和测试脚本需要审批
+/tests/ci_gate_test.py @risk-team-lead
+/tests/test_spl6b_optimizer_gate.py @risk-team-lead
+/tests/risk_regression/ @risk-team-lead
+
+# GitHub Actions workflow 需要审批
+/.github/workflows/risk_regression.yml @tech-lead
+
+# 默认：所有其他文件由 maintainer 审批
+* @maintainer
