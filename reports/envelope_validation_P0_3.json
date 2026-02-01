@@ -1,0 +1,228 @@
+{
+  "validation_date": "2026-02-01T20:58:34.765851",
+  "tolerance_pct": 0.05,
+  "spl4_baseline_envelope": {
+    "20d": {
+      "return_p95": 0.04192420439393939,
+      "return_p99": 0.04192504289898989,
+      "mdd_p95": 0.015429257684321358,
+      "mdd_p99": 0.01864431246382541,
+      "duration_p95": 7.899999999999997,
+      "duration_p99": 9.579999999999998
+    },
+    "60d": {
+      "return_p95": 0.2571330664621211,
+      "return_p99": 0.2852608161130302,
+      "mdd_p95": 0.04093133827118792,
+      "mdd_p99": 0.04709331817113457,
+      "duration_p95": 27.149999999999984,
+      "duration_p99": 35.82999999999999
+    }
+  },
+  "group_envelopes": {
+    "baseline": {
+      "20d": {
+        "return_p95": 0.027336690303030292,
+        "return_p99": 0.031196611692929282,
+        "mdd_p95": 0.017699159091332607,
+        "mdd_p99": 0.019099193441339226,
+        "duration_p95": 9.099999999999998,
+        "duration_p99": 9.819999999999999
+      },
+      "60d": {
+        "return_p95": 0.2772202410378787,
+        "return_p99": 0.2892783313788888,
+        "mdd_p95": 0.0452672725971431,
+        "mdd_p99": 0.04796210917083951,
+        "duration_p95": 33.34999999999999,
+        "duration_p99": 37.06999999999999
+      }
+    },
+    "spl4_fixed": {
+      "20d": {
+        "return_p95": 0.027336690303030292,
+        "return_p99": 0.031196611692929282,
+        "mdd_p95": 0.017699159091332607,
+        "mdd_p99": 0.019099193441339226,
+        "duration_p95": 9.099999999999998,
+        "duration_p99": 9.819999999999999
+      },
+      "60d": {
+        "return_p95": 0.2772202410378787,
+        "return_p99": 0.2892783313788888,
+        "mdd_p95": 0.0452672725971431,
+        "mdd_p99": 0.04796210917083951,
+        "duration_p95": 33.34999999999999,
+        "duration_p99": 37.06999999999999
+      }
+    },
+    "spl5a_adaptive": {
+      "20d": {
+        "return_p95": 0.027336690303030292,
+        "return_p99": 0.031196611692929282,
+        "mdd_p95": 0.017699159091332607,
+        "mdd_p99": 0.019099193441339226,
+        "duration_p95": 9.099999999999998,
+        "duration_p99": 9.819999999999999
+      },
+      "60d": {
+        "return_p95": 0.2772202410378787,
+        "return_p99": 0.2892783313788888,
+        "mdd_p95": 0.0452672725971431,
+        "mdd_p99": 0.04796210917083951,
+        "duration_p95": 33.34999999999999,
+        "duration_p99": 37.06999999999999
+      }
+    }
+  },
+  "check_result": {
+    "total_violations": 18,
+    "violations": [
+      {
+        "group": "baseline",
+        "window": "20d",
+        "metric": "return_p95",
+        "current": 0.027336690303030292,
+        "baseline": 0.04192420439393939,
+        "diff_pct": -34.79496940201418
+      },
+      {
+        "group": "baseline",
+        "window": "20d",
+        "metric": "return_p99",
+        "current": 0.031196611692929282,
+        "baseline": 0.04192504289898989,
+        "diff_pct": -25.58955331759265
+      },
+      {
+        "group": "baseline",
+        "window": "20d",
+        "metric": "mdd_p95",
+        "current": 0.017699159091332607,
+        "baseline": 0.015429257684321358,
+        "diff_pct": 14.711669566046842
+      },
+      {
+        "group": "baseline",
+        "window": "20d",
+        "metric": "duration_p95",
+        "current": 9.099999999999998,
+        "baseline": 7.899999999999997,
+        "diff_pct": 15.18987341772154
+      },
+      {
+        "group": "baseline",
+        "window": "60d",
+        "metric": "mdd_p95",
+        "current": 0.0452672725971431,
+        "baseline": 0.04093133827118792,
+        "diff_pct": 10.59318973943079
+      },
+      {
+        "group": "baseline",
+        "window": "60d",
+        "metric": "duration_p95",
+        "current": 33.34999999999999,
+        "baseline": 27.149999999999984,
+        "diff_pct": 22.836095764272585
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "20d",
+        "metric": "return_p95",
+        "current": 0.027336690303030292,
+        "baseline": 0.04192420439393939,
+        "diff_pct": -34.79496940201418
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "20d",
+        "metric": "return_p99",
+        "current": 0.031196611692929282,
+        "baseline": 0.04192504289898989,
+        "diff_pct": -25.58955331759265
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "20d",
+        "metric": "mdd_p95",
+        "current": 0.017699159091332607,
+        "baseline": 0.015429257684321358,
+        "diff_pct": 14.711669566046842
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "20d",
+        "metric": "duration_p95",
+        "current": 9.099999999999998,
+        "baseline": 7.899999999999997,
+        "diff_pct": 15.18987341772154
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "60d",
+        "metric": "mdd_p95",
+        "current": 0.0452672725971431,
+        "baseline": 0.04093133827118792,
+        "diff_pct": 10.59318973943079
+      },
+      {
+        "group": "spl4_fixed",
+        "window": "60d",
+        "metric": "duration_p95",
+        "current": 33.34999999999999,
+        "baseline": 27.149999999999984,
+        "diff_pct": 22.836095764272585
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "20d",
+        "metric": "return_p95",
+        "current": 0.027336690303030292,
+        "baseline": 0.04192420439393939,
+        "diff_pct": -34.79496940201418
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "20d",
+        "metric": "return_p99",
+        "current": 0.031196611692929282,
+        "baseline": 0.04192504289898989,
+        "diff_pct": -25.58955331759265
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "20d",
+        "metric": "mdd_p95",
+        "current": 0.017699159091332607,
+        "baseline": 0.015429257684321358,
+        "diff_pct": 14.711669566046842
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "20d",
+        "metric": "duration_p95",
+        "current": 9.099999999999998,
+        "baseline": 7.899999999999997,
+        "diff_pct": 15.18987341772154
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "60d",
+        "metric": "mdd_p95",
+        "current": 0.0452672725971431,
+        "baseline": 0.04093133827118792,
+        "diff_pct": 10.59318973943079
+      },
+      {
+        "group": "spl5a_adaptive",
+        "window": "60d",
+        "metric": "duration_p95",
+        "current": 33.34999999999999,
+        "baseline": 27.149999999999984,
+        "diff_pct": 22.836095764272585
+      }
+    ],
+    "tolerance_pct": 0.05
+  }
+}

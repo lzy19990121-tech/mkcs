@@ -1,0 +1,883 @@
+{
+  "overall_status": "PASS",
+  "total_strategies": 8,
+  "total_tests": 40,
+  "passed_tests": 28,
+  "failed_tests": 0,
+  "skipped_tests": 12,
+  "strategies": [
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_47c6a02c",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 3,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 0,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "SKIP",
+          "message": "All windows skipped: 2 windows had insufficient data",
+          "details": {
+            "20d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 3 windows < 5"
+            },
+            "60d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 0 windows < 5"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_3aeb3270",
+      "strategy_id": "unknown",
+      "run_id": "exp_4111f379",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 3,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 0,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "SKIP",
+          "message": "All windows skipped: 2 windows had insufficient data",
+          "details": {
+            "20d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 3 windows < 5"
+            },
+            "60d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 0 windows < 5"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_1677b52a",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "PASS",
+          "message": "Structural similarity maintained: tested 2 windows, skipped 0",
+          "details": {
+            "20d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 0.7533541170645652,
+              "current_similarity": 0.7533541170645652,
+              "min_allowed_relative": 0.7033541170645652,
+              "sample_size": 5,
+              "num_windows": 105,
+              "status": "TESTED"
+            },
+            "60d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 0.9521711779839052,
+              "current_similarity": 0.9521711779839052,
+              "min_allowed_relative": 0.9021711779839051,
+              "sample_size": 5,
+              "num_windows": 65,
+              "status": "TESTED"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": -0.26965898198019805,
+                "return_p99": -0.26965358839603965,
+                "mdd_p95": 0.019401585146591044,
+                "mdd_p99": 0.01944035417447459,
+                "duration_p95": 4.0,
+                "duration_p99": 4.0
+              },
+              "current_envelope": {
+                "return_p95": -0.26965898198019805,
+                "return_p99": -0.26965358839603965,
+                "mdd_p95": 0.019401585146591044,
+                "mdd_p99": 0.01944035417447459,
+                "duration_p95": 4.0,
+                "duration_p99": 4.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.19184974909090902,
+                "return_p99": 0.19185358618181808,
+                "mdd_p95": 0.04851922334160949,
+                "mdd_p99": 0.04861370242061823,
+                "duration_p95": 38.0,
+                "duration_p99": 38.0
+              },
+              "current_envelope": {
+                "return_p95": 0.19184974909090902,
+                "return_p99": 0.19185358618181808,
+                "mdd_p95": 0.04851922334160949,
+                "mdd_p99": 0.04861370242061823,
+                "duration_p95": 38.0,
+                "duration_p99": 38.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 2 rules triggered correctly",
+          "details": {
+            "stability_score": {
+              "threshold": 30.0,
+              "current_value": 5.268820897136237,
+              "triggered": true
+            },
+            "window_return": {
+              "threshold": -0.1,
+              "current_value": -0.15741649404567937,
+              "triggered": true
+            }
+          }
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_3f38beb1",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 2,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 0,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "SKIP",
+          "message": "All windows skipped: 2 windows had insufficient data",
+          "details": {
+            "20d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 2 windows < 5"
+            },
+            "60d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 0 windows < 5"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.04192420439393939,
+                "return_p99": 0.04192504289898989,
+                "mdd_p95": 0.004926674999999997,
+                "mdd_p99": 0.004936454999999995,
+                "duration_p95": 3.0,
+                "duration_p99": 3.0
+              },
+              "current_envelope": {
+                "return_p95": 0.04192420439393939,
+                "return_p99": 0.04192504289898989,
+                "mdd_p95": 0.004926674999999997,
+                "mdd_p99": 0.004936454999999995,
+                "duration_p95": 3.0,
+                "duration_p99": 3.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_3aeb3270",
+      "strategy_id": "unknown",
+      "run_id": "exp_86cd8afe",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 2,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 0,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "SKIP",
+          "message": "All windows skipped: 2 windows had insufficient data",
+          "details": {
+            "20d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 2 windows < 5"
+            },
+            "60d": {
+              "status": "SKIP",
+              "reason": "Insufficient data: 0 windows < 5"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.04192420439393939,
+                "return_p99": 0.04192504289898989,
+                "mdd_p95": 0.004926674999999997,
+                "mdd_p99": 0.004936454999999995,
+                "duration_p95": 3.0,
+                "duration_p99": 3.0
+              },
+              "current_envelope": {
+                "return_p95": 0.04192420439393939,
+                "return_p99": 0.04192504289898989,
+                "mdd_p95": 0.004926674999999997,
+                "mdd_p99": 0.004936454999999995,
+                "duration_p95": 3.0,
+                "duration_p99": 3.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_bad019f7",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "PASS",
+          "message": "Structural similarity maintained: tested 2 windows, skipped 0",
+          "details": {
+            "20d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 1.0,
+              "current_similarity": 1.0,
+              "min_allowed_relative": 0.95,
+              "sample_size": 5,
+              "num_windows": 110,
+              "status": "TESTED"
+            },
+            "60d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 1.0,
+              "current_similarity": 1.0,
+              "min_allowed_relative": 0.95,
+              "sample_size": 5,
+              "num_windows": 70,
+              "status": "TESTED"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "current_envelope": {
+                "return_p95": 0.0,
+                "return_p99": 0.0,
+                "mdd_p95": 0.0,
+                "mdd_p99": 0.0,
+                "duration_p95": 0.0,
+                "duration_p99": 0.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_fdd0ac91",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "PASS",
+          "message": "Structural similarity maintained: tested 2 windows, skipped 0",
+          "details": {
+            "20d": {
+              "baseline_pattern": "single_outlier",
+              "current_pattern": "single_outlier",
+              "baseline_similarity": 0.5272676276294986,
+              "current_similarity": 0.5272676276294986,
+              "min_allowed_relative": 0.47726762762949865,
+              "sample_size": 5,
+              "num_windows": 88,
+              "status": "TESTED"
+            },
+            "60d": {
+              "baseline_pattern": "single_outlier",
+              "current_pattern": "single_outlier",
+              "baseline_similarity": 0.47963154051939083,
+              "current_similarity": 0.47963154051939083,
+              "min_allowed_relative": 0.42963154051939084,
+              "sample_size": 5,
+              "num_windows": 48,
+              "status": "TESTED"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": -0.3761104034653465,
+                "return_p99": -0.3761028806930693,
+                "mdd_p95": 0.008052078111534819,
+                "mdd_p99": 0.008068329736629156,
+                "duration_p95": 10.0,
+                "duration_p99": 10.0
+              },
+              "current_envelope": {
+                "return_p95": -0.3761104034653465,
+                "return_p99": -0.3761028806930693,
+                "mdd_p95": 0.008052078111534819,
+                "mdd_p99": 0.008068329736629156,
+                "duration_p95": 10.0,
+                "duration_p99": 10.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": -0.7673978863861386,
+                "return_p99": -0.7673825372772277,
+                "mdd_p95": 0.026839551711833602,
+                "mdd_p99": 0.026893927427994544,
+                "duration_p95": 7.0,
+                "duration_p99": 7.0
+              },
+              "current_envelope": {
+                "return_p95": -0.7673978863861386,
+                "return_p99": -0.7673825372772277,
+                "mdd_p95": 0.026839551711833602,
+                "mdd_p99": 0.026893927427994544,
+                "duration_p95": 7.0,
+                "duration_p99": 7.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 1 rules triggered correctly",
+          "details": {
+            "window_return": {
+              "threshold": -0.1,
+              "current_value": -0.6301761626312516,
+              "triggered": true
+            }
+          }
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_0d71ac54",
+      "status": "PASS",
+      "tests": {
+        "worst_window_non_drift": {
+          "test_name": "worst_window_non_drift",
+          "status": "PASS",
+          "message": "Worst windows stable: 0.0% drift",
+          "details": {
+            "20d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "60d": {
+              "baseline_windows": 5,
+              "missing_from_top_k": 0,
+              "missing_ids": []
+            },
+            "drift_ratio": 0.0
+          }
+        },
+        "structural_similarity": {
+          "test_name": "structural_similarity",
+          "status": "PASS",
+          "message": "Structural similarity maintained: tested 2 windows, skipped 0",
+          "details": {
+            "20d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 0.8560023568859071,
+              "current_similarity": 0.8560023568859071,
+              "min_allowed_relative": 0.806002356885907,
+              "sample_size": 5,
+              "num_windows": 66,
+              "status": "TESTED"
+            },
+            "60d": {
+              "baseline_pattern": "structural",
+              "current_pattern": "structural",
+              "baseline_similarity": 1.0,
+              "current_similarity": 1.0,
+              "min_allowed_relative": 0.95,
+              "sample_size": 5,
+              "num_windows": 26,
+              "status": "TESTED"
+            }
+          }
+        },
+        "envelope_non_regression": {
+          "test_name": "envelope_non_regression",
+          "status": "PASS",
+          "message": "All envelope metrics within tolerance",
+          "details": {
+            "20d": {
+              "baseline_envelope": {
+                "return_p95": 0.03216081212121212,
+                "return_p99": 0.03216145535353535,
+                "mdd_p95": 0.0025993500000000176,
+                "mdd_p99": 0.0026045100000000173,
+                "duration_p95": 1.0,
+                "duration_p99": 1.0
+              },
+              "current_envelope": {
+                "return_p95": 0.03216081212121212,
+                "return_p99": 0.03216145535353535,
+                "mdd_p95": 0.0025993500000000176,
+                "mdd_p99": 0.0026045100000000173,
+                "duration_p95": 1.0,
+                "duration_p99": 1.0
+              },
+              "violations": []
+            },
+            "60d": {
+              "baseline_envelope": {
+                "return_p95": 0.29228562196969693,
+                "return_p99": 0.2922914678282828,
+                "mdd_p95": 0.007334600000000024,
+                "mdd_p99": 0.007349159999999995,
+                "duration_p95": 6.0,
+                "duration_p99": 6.0
+              },
+              "current_envelope": {
+                "return_p95": 0.29228562196969693,
+                "return_p99": 0.2922914678282828,
+                "mdd_p95": 0.007334600000000024,
+                "mdd_p99": 0.007349159999999995,
+                "duration_p95": 6.0,
+                "duration_p99": 6.0
+              },
+              "violations": []
+            }
+          }
+        },
+        "rule_trigger_sanity": {
+          "test_name": "rule_trigger_sanity",
+          "status": "PASS",
+          "message": "All 0 rules triggered correctly",
+          "details": {}
+        },
+        "replay_determinism": {
+          "test_name": "replay_determinism",
+          "status": "SKIP",
+          "message": "Determinism test not yet implemented (requires strategy re-run capability)",
+          "details": {
+            "note": "TODO: implement full determinism check"
+          }
+        }
+      },
+      "details": {}
+    }
+  ]
+}

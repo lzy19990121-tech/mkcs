@@ -7,6 +7,7 @@ Runs all risk regression tests and generates PASS/FAIL report.
 import sys
 import argparse
 import json
+import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any
@@ -14,6 +15,20 @@ from typing import Dict, List, Any
 from analysis.baseline_manager import BaselineManager
 from analysis.replay_schema import load_replay_outputs
 from tests.risk_regression.risk_baseline_test import RiskBaselineTests, TestResult
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder for numpy types"""
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 def generate_markdown_report(results: Dict[str, Any], output_path: Path):
@@ -148,8 +163,8 @@ def run_risk_regression(
     current_replays = load_replay_outputs(replay_dir)
     print(f"Loaded {len(current_replays)} current replays\n")
 
-    # Map replays by strategy_id
-    replay_map = {r.strategy_id: r for r in current_replays}
+    # Map replays by run_id (more specific than strategy_id)
+    replay_map = {r.run_id: r for r in current_replays}
 
     # Run tests
     results = {
@@ -178,14 +193,14 @@ def run_risk_regression(
         }
 
         # Find corresponding current replay
-        current_replay = replay_map.get(baseline.strategy_id)
+        current_replay = replay_map.get(baseline.run_id)
 
         if current_replay is None:
-            print(f"  ⏭️  SKIP: No current replay found for {baseline.strategy_id}")
+            print(f"  ⏭️  SKIP: No current replay found for {baseline.run_id}")
             strategy_result["status"] = "SKIP"
             strategy_result["tests"]["_error"] = {
                 "status": "SKIP",
-                "message": f"No current replay found for strategy {baseline.strategy_id}"
+                "message": f"No current replay found for run {baseline.run_id}"
             }
             results["skipped_tests"] += 1
             results["strategies"].append(strategy_result)
@@ -249,7 +264,7 @@ def run_risk_regression(
 
     # Save reports
     json_path = output_path / "report.json"
-    json_path.write_text(json.dumps(results, indent=2), encoding='utf-8')
+    json_path.write_text(json.dumps(results, indent=2, cls=NumpyEncoder), encoding='utf-8')
     print(f"\n✓ JSON report saved: {json_path}")
 
     md_path = output_path / "report.md"

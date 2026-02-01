@@ -1,0 +1,171 @@
+{
+  "version": "adaptive_v1",
+  "calibrated_at": "2026-02-01T11:20:00.583154",
+  "train_ratio": 0.7,
+  "min_windows": 10,
+  "rules": {
+    "adaptive_stability_gating": {
+      "rule_id": "adaptive_stability_gating",
+      "rule_name": "\u81ea\u9002\u5e94\u7a33\u5b9a\u6027\u6682\u505c\u4ea4\u6613",
+      "rule_type": "gating",
+      "best_params": {
+        "low": 15.0,
+        "med": 25.0,
+        "high": 35.0
+      },
+      "best_result": {
+        "params": {
+          "low": 15.0,
+          "med": 25.0,
+          "high": 35.0
+        },
+        "train_score": 0.0,
+        "validation_score": 0.0,
+        "train_triggers": 233,
+        "validation_triggers": 60,
+        "train_downtime": 1.0,
+        "validation_downtime": 1.0,
+        "envelope_violations": 60
+      },
+      "all_results": [
+        {
+          "params": {
+            "low": 15.0,
+            "med": 25.0,
+            "high": 35.0
+          },
+          "train_score": 0.0,
+          "validation_score": 0.0,
+          "train_triggers": 233,
+          "validation_triggers": 60,
+          "train_downtime": 1.0,
+          "validation_downtime": 1.0,
+          "envelope_violations": 60
+        }
+      ]
+    },
+    "adaptive_return_reduction": {
+      "rule_id": "adaptive_return_reduction",
+      "rule_name": "\u81ea\u9002\u5e94\u6536\u76ca\u964d\u4ed3",
+      "rule_type": "reduction",
+      "best_params": {
+        "intercept": -0.1,
+        "slope": -3.0,
+        "min_value": -0.25,
+        "max_value": -0.08
+      },
+      "best_result": {
+        "params": {
+          "intercept": -0.1,
+          "slope": -3.0,
+          "min_value": -0.25,
+          "max_value": -0.08
+        },
+        "train_score": 86.65236051502146,
+        "validation_score": 50.0,
+        "train_triggers": 31,
+        "validation_triggers": 28,
+        "train_downtime": 0.13304721030042918,
+        "validation_downtime": 0.4666666666666667,
+        "envelope_violations": 28
+      },
+      "all_results": [
+        {
+          "params": {
+            "intercept": -0.1,
+            "slope": -3.0,
+            "min_value": -0.25,
+            "max_value": -0.08
+          },
+          "train_score": 86.65236051502146,
+          "validation_score": 50.0,
+          "train_triggers": 31,
+          "validation_triggers": 28,
+          "train_downtime": 0.13304721030042918,
+          "validation_downtime": 0.4666666666666667,
+          "envelope_violations": 28
+        }
+      ]
+    },
+    "adaptive_regime_disable": {
+      "rule_id": "adaptive_regime_disable",
+      "rule_name": "\u81ea\u9002\u5e94\u5e02\u573a\u72b6\u6001\u7981\u7528",
+      "rule_type": "disable",
+      "best_params": {
+        "weak": 0.0,
+        "strong": 1.0
+      },
+      "best_result": {
+        "params": {
+          "weak": 0.0,
+          "strong": 1.0
+        },
+        "train_score": 0.0,
+        "validation_score": 0.0,
+        "train_triggers": 233,
+        "validation_triggers": 60,
+        "train_downtime": 1.0,
+        "validation_downtime": 1.0,
+        "envelope_violations": 60
+      },
+      "all_results": [
+        {
+          "params": {
+            "weak": 0.0,
+            "strong": 1.0
+          },
+          "train_score": 0.0,
+          "validation_score": 0.0,
+          "train_triggers": 233,
+          "validation_triggers": 60,
+          "train_downtime": 1.0,
+          "validation_downtime": 1.0,
+          "envelope_violations": 60
+        }
+      ]
+    },
+    "adaptive_duration_gating": {
+      "rule_id": "adaptive_duration_gating",
+      "rule_name": "\u81ea\u9002\u5e94\u56de\u64a4\u6301\u7eed\u6682\u505c",
+      "rule_type": "gating",
+      "best_params": {
+        "intercept": 8.0,
+        "slope": -250.0,
+        "min_value": 3.0,
+        "max_value": 12.0
+      },
+      "best_result": {
+        "params": {
+          "intercept": 8.0,
+          "slope": -250.0,
+          "min_value": 3.0,
+          "max_value": 12.0
+        },
+        "train_score": 31.80257510729614,
+        "validation_score": 67.5,
+        "train_triggers": 137,
+        "validation_triggers": 21,
+        "train_downtime": 0.5879828326180258,
+        "validation_downtime": 0.35,
+        "envelope_violations": 21
+      },
+      "all_results": [
+        {
+          "params": {
+            "intercept": 8.0,
+            "slope": -250.0,
+            "min_value": 3.0,
+            "max_value": 12.0
+          },
+          "train_score": 31.80257510729614,
+          "validation_score": 67.5,
+          "train_triggers": 137,
+          "validation_triggers": 21,
+          "train_downtime": 0.5879828326180258,
+          "validation_downtime": 0.35,
+          "envelope_violations": 21
+        }
+      ]
+    }
+  }
+}

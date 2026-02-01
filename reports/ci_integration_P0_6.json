@@ -1,0 +1,14 @@
+{
+  "integration_date": "2026-02-01T21:11:54.440258",
+  "ci_gate_script": "/home/neal/mkcs/tests/ci_gate_test.py",
+  "intentional_fail_script": "/home/neal/mkcs/tests/intentional_fail_test.py",
+  "real_data_tested": true,
+  "real_data_passed": true,
+  "fail_test_passed": true,
+  "acceptance_checks": {
+    "\u2713 CI gate \u811a\u672c\u5b58\u5728\u4e14\u53ef\u6267\u884c": true,
+    "\u2713 CI gate \u80fd\u68c0\u6d4b FAIL": true,
+    "\u2713 FAIL \u65f6\u9000\u51fa\u7801\u975e 0": true,
+    "\u2713 \u771f\u5b9e\u6570\u636e\u6d4b\u8bd5\u901a\u8fc7": true
+  }
+}

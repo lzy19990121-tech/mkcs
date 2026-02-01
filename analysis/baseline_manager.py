@@ -105,21 +105,27 @@ class BaselineManager:
             envelopes = {}
             rule_thresholds = {}
 
+            # Stability analysis (once for entire replay)
+            stability_report = stability_analyzer.analyze_replay(replay)
+            stability_metrics = {
+                "stability_score": stability_report.stability_score,
+                "return_variance": stability_report.return_variance,
+                "mdd_consistency": stability_report.mdd_consistency,
+                "worst_cvar": stability_report.worst_cvar
+            }
+
+            # Store envelope and structural results for rule generation
+            primary_envelope = None
+            primary_structural = None
+            primary_window = window_lengths[0] if window_lengths else "20d"
+
             for window_length in window_lengths:
                 print(f"  Analyzing {window_length} window...")
 
                 # Find worst windows
-                windows = window_scanner.find_worst_windows(replay, window_length, top_k=5)
+                all_windows = window_scanner.scan_replay(replay, window_length)
+                windows = all_windows[:5] if len(all_windows) >= 5 else all_windows
                 worst_windows[window_length] = [w.window_id for w in windows]
-
-                # Stability analysis
-                stability_report = stability_analyzer.analyze_replay(replay)
-                stability_metrics = {
-                    "stability_score": stability_report.stability_score,
-                    "stability_label": stability_report.stability_label.value,
-                    "total_tests": stability_report.total_tests,
-                    "passed_tests": stability_report.passed_tests
-                }
 
                 # Risk envelope
                 envelope = envelope_builder.build_envelope(replay, window_length)
@@ -137,12 +143,18 @@ class BaselineManager:
                 risk_patterns[window_length] = structural_result.risk_pattern_type.value
                 pattern_similarity[window_length] = structural_result.pattern_metrics.pattern_similarity
 
-            # Generate rules to extract thresholds
-            ruleset = rule_generator.generate_rules(
-                replay, stability_report, envelope, structural_result
-            )
-            for rule in ruleset.rules:
-                rule_thresholds[rule.trigger_metric] = rule.trigger_threshold
+                # Store primary window results for rule generation
+                if window_length == primary_window:
+                    primary_envelope = envelope
+                    primary_structural = structural_result
+
+            # Generate rules from primary window
+            if primary_envelope and primary_structural:
+                ruleset = rule_generator.generate_rules(
+                    replay, stability_report, primary_envelope, primary_structural
+                )
+                for rule in ruleset.rules:
+                    rule_thresholds[rule.trigger_metric] = rule.trigger_threshold
 
             # Create baseline
             baseline = RiskBaseline(

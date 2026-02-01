@@ -1,0 +1,56 @@
+{
+  "backtest_date": "2026-02-01T10:46:28.337676",
+  "replay_mode": "replay_mock",
+  "data_source": {
+    "type": "mock",
+    "path": null,
+    "seed": 44
+  },
+  "data_hash": null,
+  "config": {
+    "data_source": "mock",
+    "symbols": [
+      "AAPL"
+    ],
+    "start_date": "2025-09-04",
+    "end_date": "2026-02-01",
+    "commission": {
+      "type": "per_share",
+      "value": 0.01
+    },
+    "slippage": {
+      "enabled": true,
+      "type": "fixed",
+      "value": 0.001
+    },
+    "strategy": {
+      "name": "ma",
+      "params": {
+        "fast_period": 5,
+        "slow_period": 20
+      }
+    },
+    "risk": {
+      "max_position_ratio": 0.2,
+      "max_positions": 5,
+      "max_daily_loss_ratio": 0.05
+    }
+  },
+  "config_hash": "sha256:35baa43f55bec1a1",
+  "git_commit": "e9a27f19",
+  "date_range": {
+    "start": "2025-09-04",
+    "end": "2026-02-01",
+    "interval": "1d"
+  },
+  "symbols": [
+    "AAPL"
+  ],
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 97773.0,
+    "total_return": -0.02227,
+    "total_pnl": -2227.0,
+    "trade_count": 7
+  }
+}

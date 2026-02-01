@@ -1,0 +1,13 @@
+{
+  "run_date": "2026-02-01T21:11:54.139529",
+  "baseline_run_id": "exp_47c6a02c",
+  "current_run_id": "exp_4111f379",
+  "tests": [
+    {
+      "name": "basic_regression",
+      "status": "PASS",
+      "message": "\u57fa\u672c\u6307\u6807\u6b63\u5e38: Return=0.00, MDD=-inf%"
+    }
+  ],
+  "block_release": false
+}

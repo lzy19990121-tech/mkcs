@@ -1,1 +1,7 @@
 {"ts": "2026-01-27T18:04:45.851586", "symbol": "AAPL", "stage": "order_exec", "payload": {"side": "BUY", "price": 150.0, "quantity": 100}, "reason": "订单执行成功"}
+{"ts": "2026-01-27T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}
+{"ts": "2026-01-27T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}
+{"ts": "2026-01-27T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}
+{"ts": "2026-01-27T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}
+{"ts": "2026-01-27T09:30:00", "symbol": "MSFT", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}
+{"ts": "2026-01-27T09:30:00", "symbol": "AAPL", "stage": "data_fetch", "payload": {"bars_count": 64, "interval": "1d"}, "reason": "fetch_bars_until 2026-01-27T09:30:00"}

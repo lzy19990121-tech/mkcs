@@ -1,0 +1,35 @@
+{
+  "experiment_id": "exp_0d71ac54",
+  "started_at": "2026-02-01T10:46:27.804742",
+  "ended_at": "2026-02-01T10:46:27.868642",
+  "status": "completed",
+  "git_commit": "e9a27f19",
+  "git_branch": "main",
+  "repo_dirty": false,
+  "config_hash": "cfg_0d71ac54",
+  "data_hash": null,
+  "mode": "replay_mock",
+  "symbols": [
+    "AAPL"
+  ],
+  "start_date": "2025-10-04",
+  "end_date": "2026-02-01",
+  "interval": "1d",
+  "cost_model": {
+    "commission_per_share": 0.01,
+    "slippage_bps": 0.0
+  },
+  "artifacts": [
+    "summary.json",
+    "equity_curve.csv",
+    "trades.csv",
+    "risk_rejects.csv"
+  ],
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 100127.0,
+    "total_return": 0.00127,
+    "total_pnl": 127.0,
+    "trade_count": 3
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "version": "adaptive_v1",
+  "calibrated_at": "2026-02-01T20:42:37.821141",
+  "commit_hash": "e9a27f19565c6c9746c8768f2fb8795cd80bc021",
+  "data_version": "real_data_20260201",
+  "train_ratio": 0.7,
+  "train_period": {
+    "start": "2024-01-01",
+    "end": "2026-02-01"
+  },
+  "val_period": {
+    "start": "2025-09-04",
+    "end": "2026-02-01"
+  },
+  "train_stats": {
+    "vol_mean": 0.02233191129530147,
+    "vol_std": 0.02233191129530147,
+    "vol_min": 0.0,
+    "vol_max": 0.04466382259060294,
+    "adx_mean": 34.80769230769231,
+    "adx_std": 9.807692307692307,
+    "spread_mean": 0.000969706235276996
+  },
+  "val_stats": {
+    "vol_mean": 0.03607493394178366,
+    "vol_std": 0.010547956025333793,
+    "vol_min": 0.02552697791644987,
+    "vol_max": 0.046622889967117456,
+    "adx_mean": 50.38461538461539,
+    "adx_std": 40.38461538461539,
+    "spread_mean": 0.0022406584791067625
+  },
+  "calibrated_thresholds": {
+    "stability_gating": {
+      "low": 15.0,
+      "med": 30.0,
+      "high": 41.16595564765073
+    },
+    "return_reduction": {
+      "intercept": -0.12466382259060294,
+      "slope": -200.0,
+      "min_value": -0.2,
+      "max_value": -0.05
+    },
+    "regime_disable": {
+      "adx_threshold": 25.0
+    },
+    "duration_gating": {
+      "intercept": 10.0,
+      "slope": -200.0,
+      "min_value": 5.0,
+      "max_value": 15.0
+    }
+  },
+  "eligible_runs": [
+    {
+      "run_id": "exp_1677b52a",
+      "strategy_id": "unknown",
+      "n_steps": 124
+    },
+    {
+      "run_id": "exp_bad019f7",
+      "strategy_id": "unknown",
+      "n_steps": 129
+    },
+    {
+      "run_id": "exp_fdd0ac91",
+      "strategy_id": "unknown",
+      "n_steps": 107
+    },
+    {
+      "run_id": "exp_0d71ac54",
+      "strategy_id": "unknown",
+      "n_steps": 85
+    }
+  ]
+}

@@ -32,12 +32,16 @@ class RiskPatternMetrics:
 
     # 相似性指标
     mdd_cv: float            # MDD变异系数
-    pattern_similarity: float  # 形态相似度 (0-1)
+    pattern_similarity: float  # 形态相似度 (0-1)，NaN表示数据不足
+    sample_size: int = 0     # 用于计算相似度的样本数量（窗口数）
 
     @property
     def is_structural(self) -> bool:
         """是否为结构性风险"""
         # MDD变异系数 < 0.3 且 形态相似度 > 0.7
+        # 如果 similarity 是 NaN，则不是结构性风险（数据不足）
+        if np.isnan(self.pattern_similarity):
+            return False
         return self.mdd_cv < 0.3 and self.pattern_similarity > 0.7
 
 
@@ -143,6 +147,8 @@ class StructuralAnalyzer:
             shape_vectors.append(vec)
 
         # 计算向量间的平均相似度
+        sample_size = len(windows)  # 记录样本数量
+
         if len(shape_vectors) > 1:
             similarities = []
             for i in range(len(shape_vectors)):
@@ -160,9 +166,10 @@ class StructuralAnalyzer:
                         similarity = 1 - euclidean_dist
                         similarities.append(similarity)
 
-            pattern_similarity = np.mean(similarities) if similarities else 0
+            pattern_similarity = np.mean(similarities) if similarities else np.nan
         else:
-            pattern_similarity = 0
+            # 数据不足：少于2个窗口无法计算相似度
+            pattern_similarity = np.nan
 
         return RiskPatternMetrics(
             avg_mdd=avg_mdd,
@@ -172,7 +179,8 @@ class StructuralAnalyzer:
             avg_single_loss=avg_single_loss,
             max_consecutive_losses=max_consecutive_loss,
             mdd_cv=mdd_cv,
-            pattern_similarity=pattern_similarity
+            pattern_similarity=pattern_similarity,
+            sample_size=sample_size
         )
 
     def _classify_risk_pattern(

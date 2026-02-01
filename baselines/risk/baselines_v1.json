@@ -1,6 +1,455 @@
 {
   "version": "1.0",
-  "created_at": "2026-02-01T00:00:00",
-  "commit_hash": "7c4511b",
-  "baselines": []
+  "created_at": "2026-02-01T11:13:16.352095",
+  "commit_hash": "e9a27f19",
+  "baselines": [
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_47c6a02c",
+      "commit_hash": "0232e5c9",
+      "config_hash": "cfg_47c6a02c",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:16.399317",
+      "worst_windows": {
+        "20d": [
+          "exp_47c6a02c_20d_0",
+          "exp_47c6a02c_20d_1",
+          "exp_47c6a02c_20d_2"
+        ],
+        "60d": []
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "single_outlier"
+      },
+      "pattern_similarity": {
+        "20d": 1.0,
+        "60d": NaN
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        },
+        "60d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 100.0,
+        "return_variance": 0.0,
+        "mdd_consistency": 0.0,
+        "worst_cvar": 0.0
+      }
+    },
+    {
+      "baseline_id": "unknown_3aeb3270",
+      "strategy_id": "unknown",
+      "run_id": "exp_4111f379",
+      "commit_hash": "fa690b4e",
+      "config_hash": "cfg_4111f379",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:16.443114",
+      "worst_windows": {
+        "20d": [
+          "exp_4111f379_20d_0",
+          "exp_4111f379_20d_1",
+          "exp_4111f379_20d_2"
+        ],
+        "60d": []
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "single_outlier"
+      },
+      "pattern_similarity": {
+        "20d": 1.0,
+        "60d": NaN
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        },
+        "60d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 100.0,
+        "return_variance": 0.0,
+        "mdd_consistency": 0.0,
+        "worst_cvar": 0.0
+      }
+    },
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_1677b52a",
+      "commit_hash": "0232e5c9",
+      "config_hash": "cfg_1677b52a",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:17.526230",
+      "worst_windows": {
+        "20d": [
+          "exp_1677b52a_20d_104",
+          "exp_1677b52a_20d_103",
+          "exp_1677b52a_20d_102",
+          "exp_1677b52a_20d_101",
+          "exp_1677b52a_20d_100"
+        ],
+        "60d": [
+          "exp_1677b52a_60d_64",
+          "exp_1677b52a_60d_63",
+          "exp_1677b52a_60d_62",
+          "exp_1677b52a_60d_61",
+          "exp_1677b52a_60d_60"
+        ]
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "structural"
+      },
+      "pattern_similarity": {
+        "20d": 0.7533541170645652,
+        "60d": 0.9521711779839052
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": -0.26965898198019805,
+          "return_p99": -0.26965358839603965,
+          "mdd_p95": 0.019401585146591044,
+          "mdd_p99": 0.01944035417447459,
+          "duration_p95": 4.0,
+          "duration_p99": 4.0
+        },
+        "60d": {
+          "return_p95": 0.19184974909090902,
+          "return_p99": 0.19185358618181808,
+          "mdd_p95": 0.04851922334160949,
+          "mdd_p99": 0.04861370242061823,
+          "duration_p95": 38.0,
+          "duration_p99": 38.0
+        }
+      },
+      "rule_thresholds": {
+        "stability_score": 30.0,
+        "window_return": -0.1,
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 5.268820897136237,
+        "return_variance": 0.08747809579463361,
+        "mdd_consistency": 0.8243726367621255,
+        "worst_cvar": 5.415181956027296
+      }
+    },
+    {
+      "baseline_id": "unknown_5d65708a",
+      "strategy_id": "unknown",
+      "run_id": "exp_3f38beb1",
+      "commit_hash": "0232e5c9",
+      "config_hash": "cfg_3f38beb1",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:17.569115",
+      "worst_windows": {
+        "20d": [
+          "exp_3f38beb1_20d_0",
+          "exp_3f38beb1_20d_1"
+        ],
+        "60d": []
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "single_outlier"
+      },
+      "pattern_similarity": {
+        "20d": 0.8969639725098819,
+        "60d": NaN
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.04192420439393939,
+          "return_p99": 0.04192504289898989,
+          "mdd_p95": 0.004926674999999997,
+          "mdd_p99": 0.004936454999999995,
+          "duration_p95": 3.0,
+          "duration_p99": 3.0
+        },
+        "60d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 69.61716710311111,
+        "return_variance": 0.0003828328968888888,
+        "mdd_consistency": 1.414213562373095,
+        "worst_cvar": 0.0
+      }
+    },
+    {
+      "baseline_id": "unknown_3aeb3270",
+      "strategy_id": "unknown",
+      "run_id": "exp_86cd8afe",
+      "commit_hash": "fa690b4e",
+      "config_hash": "cfg_86cd8afe",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:17.611665",
+      "worst_windows": {
+        "20d": [
+          "exp_86cd8afe_20d_0",
+          "exp_86cd8afe_20d_1"
+        ],
+        "60d": []
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "single_outlier"
+      },
+      "pattern_similarity": {
+        "20d": 0.8969639725098819,
+        "60d": NaN
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.04192420439393939,
+          "return_p99": 0.04192504289898989,
+          "mdd_p95": 0.004926674999999997,
+          "mdd_p99": 0.004936454999999995,
+          "duration_p95": 3.0,
+          "duration_p99": 3.0
+        },
+        "60d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 69.61716710311111,
+        "return_variance": 0.0003828328968888888,
+        "mdd_consistency": 1.414213562373095,
+        "worst_cvar": 0.0
+      }
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_bad019f7",
+      "commit_hash": "e9a27f19",
+      "config_hash": "cfg_bad019f7",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:18.499498",
+      "worst_windows": {
+        "20d": [
+          "exp_bad019f7_20d_0",
+          "exp_bad019f7_20d_1",
+          "exp_bad019f7_20d_2",
+          "exp_bad019f7_20d_3",
+          "exp_bad019f7_20d_4"
+        ],
+        "60d": [
+          "exp_bad019f7_60d_0",
+          "exp_bad019f7_60d_1",
+          "exp_bad019f7_60d_2",
+          "exp_bad019f7_60d_3",
+          "exp_bad019f7_60d_4"
+        ]
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "structural"
+      },
+      "pattern_similarity": {
+        "20d": 1.0,
+        "60d": 1.0
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        },
+        "60d": {
+          "return_p95": 0.0,
+          "return_p99": 0.0,
+          "mdd_p95": 0.0,
+          "mdd_p99": 0.0,
+          "duration_p95": 0.0,
+          "duration_p99": 0.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 100.0,
+        "return_variance": 0.0,
+        "mdd_consistency": 0.0,
+        "worst_cvar": 0.0
+      }
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_fdd0ac91",
+      "commit_hash": "e9a27f19",
+      "config_hash": "cfg_fdd0ac91",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:19.331199",
+      "worst_windows": {
+        "20d": [
+          "exp_fdd0ac91_20d_55",
+          "exp_fdd0ac91_20d_54",
+          "exp_fdd0ac91_20d_53",
+          "exp_fdd0ac91_20d_56",
+          "exp_fdd0ac91_20d_52"
+        ],
+        "60d": [
+          "exp_fdd0ac91_60d_47",
+          "exp_fdd0ac91_60d_46",
+          "exp_fdd0ac91_60d_45",
+          "exp_fdd0ac91_60d_44",
+          "exp_fdd0ac91_60d_43"
+        ]
+      },
+      "risk_patterns": {
+        "20d": "single_outlier",
+        "60d": "single_outlier"
+      },
+      "pattern_similarity": {
+        "20d": 0.5272676276294986,
+        "60d": 0.47963154051939083
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": -0.3761104034653465,
+          "return_p99": -0.3761028806930693,
+          "mdd_p95": 0.008052078111534819,
+          "mdd_p99": 0.008068329736629156,
+          "duration_p95": 10.0,
+          "duration_p99": 10.0
+        },
+        "60d": {
+          "return_p95": -0.7673978863861386,
+          "return_p99": -0.7673825372772277,
+          "mdd_p95": 0.026839551711833602,
+          "mdd_p99": 0.026893927427994544,
+          "duration_p95": 7.0,
+          "duration_p99": 7.0
+        }
+      },
+      "rule_thresholds": {
+        "window_return": -0.1
+      },
+      "stability_metrics": {
+        "stability_score": 100.0,
+        "return_variance": 0.08584270296874999,
+        "mdd_consistency": 1.006878017206479,
+        "worst_cvar": -1.0
+      }
+    },
+    {
+      "baseline_id": "unknown_9d898547",
+      "strategy_id": "unknown",
+      "run_id": "exp_0d71ac54",
+      "commit_hash": "e9a27f19",
+      "config_hash": "cfg_0d71ac54",
+      "analysis_version": "deep_analysis_v3b",
+      "created_at": "2026-02-01T11:13:19.898761",
+      "worst_windows": {
+        "20d": [
+          "exp_0d71ac54_20d_0",
+          "exp_0d71ac54_20d_1",
+          "exp_0d71ac54_20d_2",
+          "exp_0d71ac54_20d_3",
+          "exp_0d71ac54_20d_4"
+        ],
+        "60d": [
+          "exp_0d71ac54_60d_0",
+          "exp_0d71ac54_60d_1",
+          "exp_0d71ac54_60d_2",
+          "exp_0d71ac54_60d_3",
+          "exp_0d71ac54_60d_4"
+        ]
+      },
+      "risk_patterns": {
+        "20d": "structural",
+        "60d": "structural"
+      },
+      "pattern_similarity": {
+        "20d": 0.8560023568859071,
+        "60d": 1.0
+      },
+      "envelopes": {
+        "20d": {
+          "return_p95": 0.03216081212121212,
+          "return_p99": 0.03216145535353535,
+          "mdd_p95": 0.0025993500000000176,
+          "mdd_p99": 0.0026045100000000173,
+          "duration_p95": 1.0,
+          "duration_p99": 1.0
+        },
+        "60d": {
+          "return_p95": 0.29228562196969693,
+          "return_p99": 0.2922914678282828,
+          "mdd_p95": 0.007334600000000024,
+          "mdd_p99": 0.007349159999999995,
+          "duration_p95": 6.0,
+          "duration_p99": 6.0
+        }
+      },
+      "rule_thresholds": {
+        "market_regime": 0.0
+      },
+      "stability_metrics": {
+        "stability_score": 55.242383375,
+        "return_variance": 0.014757616625,
+        "mdd_consistency": 1.2059996326314,
+        "worst_cvar": 0.0
+      }
+    }
+  ]
 }
