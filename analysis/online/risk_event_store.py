@@ -157,9 +157,7 @@ class RiskEventStore:
                 data TEXT NOT NULL,
                 data_version TEXT,
                 source TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                INDEX(event_type, timestamp),
-                INDEX(strategy_id, timestamp)
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
 

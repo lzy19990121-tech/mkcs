@@ -1,0 +1,162 @@
+# Live Trading Alerts Configuration
+# 实时交易告警配置
+
+# 告警规则
+alert_rules:
+
+  # 规则 1: Envelope 接近告警
+  envelope_approach:
+    enabled: true
+    rule_id: "envelope_approach"
+    name: "接近 Envelope"
+    description: "回撤接近 envelope 上限（70%）"
+    metric_name: "envelope_usage"
+    condition: "greater_than"
+    threshold: 0.70  # 70% envelope 使用率触发警告
+    severity: "warning"
+    channels:
+      - log
+      - slack
+    cooldown_seconds: 3600  # 1 小时冷却
+
+  # 规则 2: Envelope 严重告警
+  envelope_critical:
+    enabled: true
+    rule_id: "envelope_critical"
+    name: "Envelope 严重"
+    description: "回撤接近 envelope 硬上限（90%）"
+    metric_name: "envelope_usage"
+    condition: "greater_than"
+    threshold: 0.90  # 90% envelope 使用率触发严重告警
+    severity: "critical"
+    channels:
+      - log
+      - slack
+      - webhook
+    cooldown_seconds: 1800  # 30 分钟冷却
+
+  # 规则 3: Spike 激增告警
+  spike_surge:
+    enabled: true
+    rule_id: "spike_surge"
+    name: "Spike 激增"
+    description: "近期 spike 次数异常增加（>5 次）"
+    metric_name: "spike_count"
+    condition: "greater_than"
+    threshold: 5  # 5 个 spike 触发警告
+    severity: "warning"
+    channels:
+      - log
+      - slack
+    cooldown_seconds: 1800
+
+  # 规则 4: Gating 频率异常告警
+  gating_frequency_high:
+    enabled: true
+    rule_id: "gating_frequency_high"
+    name: "Gating 频率异常"
+    description: "Gating 触发频率过高（>20%）"
+    metric_name: "gating_frequency"
+    condition: "greater_than"
+    threshold: 0.20  # 20% gating 频率
+    severity: "warning"
+    channels:
+      - log
+      - slack
+    cooldown_seconds: 3600
+
+  # 规则 5: 波动率上升告警
+  volatility_rising:
+    enabled: true
+    rule_id: "volatility_rising"
+    name: "波动率上升"
+    description: "波动率呈上升趋势"
+    metric_name: "volatility_trend"
+    condition: "trend_up"
+    threshold: 0.001  # 趋势斜率 > 0.001
+    severity: "info"
+    channels:
+      - log
+    cooldown_seconds: 7200  # 2 小时冷却
+
+  # 规则 6: 状态转换到 CRITICAL
+  state_critical:
+    enabled: true
+    rule_id: "state_critical"
+    name: "状态转为严重"
+    description: "风险状态转换为 CRITICAL"
+    metric_name: "risk_state"
+    condition: "equals"
+    threshold: 2.0  # CRITICAL 状态值
+    severity: "critical"
+    channels:
+      - log
+      - slack
+      - email
+    cooldown_seconds: 1800
+
+  # 规则 7: Allocator Cap 命中率异常
+  allocator_cap_hit:
+    enabled: true
+    rule_id: "allocator_cap_hit"
+    name: "Allocator Cap 命中率异常"
+    description: "Allocator cap 命中频率过高（>30%）"
+    metric_name: "cap_hit_rate"
+    condition: "greater_than"
+    threshold: 0.30  # 30% cap 命中率
+    severity: "warning"
+    channels:
+      - log
+      - slack
+    cooldown_seconds: 3600
+
+  # 规则 8: 单日亏损过大（Kill Switch 触发条件）
+  daily_loss_limit:
+    enabled: true
+    rule_id: "daily_loss_limit"
+    name: "单日亏损过大"
+    description: "单日亏损超过限制（3%）"
+    metric_name: "daily_return"
+    condition: "less_than"
+    threshold: -0.03  # -3% 收益
+    severity: "critical"
+    channels:
+      - log
+      - slack
+      - webhook
+    cooldown_seconds: 86400  # 24 小时冷却（整个交易日）
+
+# 告警渠道配置
+channels:
+  log:
+    enabled: true
+    level: INFO  # INFO, WARNING, ERROR
+
+  slack:
+    enabled: false  # 设为 true 启用
+    webhook_url: ""  # Slack webhook URL
+    channel: "#trading-alerts"
+    username: "Trading Bot"
+    icon_emoji: ":warning:"
+
+  webhook:
+    enabled: false  # 设为 true 启用
+    url: ""  # 自定义 webhook URL
+    method: "POST"
+    headers: {}
+
+  email:
+    enabled: false  # 设为 true 启用
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    from_address: ""
+    to_addresses:
+      - ""
+
+# 告警聚合配置
+aggregation:
+  enabled: true
+  window_seconds: 300  # 5 分钟内相同告警只发送一次
+  max_same_alerts: 3   # 5 分钟内最多发送 3 次相同告警

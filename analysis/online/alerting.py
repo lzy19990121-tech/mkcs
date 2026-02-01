@@ -204,7 +204,7 @@ class AlertRuleEngine:
             description="风险状态转换为 CRITICAL",
             metric_name="risk_state",
             condition="equals",
-            threshold=float(RiskState.CRITICAL.value),
+            threshold=2.0,  # CRITICAL 对应的数值（NORMAL=0, WARNING=1, CRITICAL=2）
             severity=AlertSeverity.CRITICAL,
             channels=[AlertChannel.LOG, AlertChannel.SLACK, AlertChannel.EMAIL]
         )
@@ -289,8 +289,17 @@ class AlertRuleEngine:
             metrics["volatility_trend"] = 0.0
 
         # 风险状态
-        state_order = {RiskState.NORMAL: 0, RiskState.WARNING: 1, RiskState.CRITICAL: 2}
-        metrics["risk_state"] = float(state_order[state])
+        state_order = {
+            RiskState.NORMAL: 0,
+            RiskState.WARNING: 1,
+            RiskState.CRITICAL: 2,
+            "NORMAL": 0,
+            "WARNING": 1,
+            "CRITICAL": 2
+        }
+        # 处理 state 可能是枚举或字符串的情况
+        state_key = state if isinstance(state, str) else state.value if hasattr(state, 'value') else state
+        metrics["risk_state"] = float(state_order.get(state_key, 0))
 
         # Cap 命中率（从 allocator 事件中提取）
         cap_hit_count = sum(

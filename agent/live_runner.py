@@ -8,7 +8,10 @@ import logging
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from analysis.online.risk_monitor import RiskMonitor
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -20,6 +23,14 @@ from skills.strategy.base import Strategy
 from skills.risk.base import RiskManager
 from broker.paper import PaperBroker
 from events.event_log import EventLogger, Event
+
+# SPL-7a Risk Monitor
+try:
+    from analysis.online.risk_monitor import RiskMonitor
+    RISK_MONITOR_AVAILABLE = True
+except ImportError:
+    RISK_MONITOR_AVAILABLE = False
+    logger.warning("SPL-7a RiskMonitor 不可用")
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +55,11 @@ class LiveTradingConfig:
     enable_after_hours: bool = False          # 是否允许盘后交易
     max_daily_signals: int = 10               # 每日最大信号数
     emergency_stop_loss: Decimal = Decimal("0.05")  # 紧急止损比例
+
+    # SPL-7a 配置
+    enable_risk_monitor: bool = True          # 是否启用 SPL-7a 监控
+    risk_monitor_output: str = "data/live_monitoring"  # 监控输出目录
+    alerts_config: Optional[str] = None       # 告警配置文件路径
 
 
 class LiveTrader:
@@ -77,6 +93,23 @@ class LiveTrader:
         self.risk_manager = risk_manager
         self.broker = broker or PaperBroker()
         self.event_logger = event_logger or EventLogger()
+
+        # ========== SPL-7a Risk Monitor ==========
+        self.risk_monitor = None
+        if config.enable_risk_monitor and RISK_MONITOR_AVAILABLE:
+            strategy_id = f"{strategy.__class__.__name__}" if strategy else "unknown"
+            try:
+                self.risk_monitor = RiskMonitor(
+                    strategy_id=strategy_id,
+                    symbols=config.symbols,
+                    config_path=config.alerts_config,
+                    output_dir=config.risk_monitor_output
+                )
+                logger.info(f"[SPL-7a] RiskMonitor 已启用: {strategy_id}")
+            except Exception as e:
+                logger.error(f"[SPL-7a] RiskMonitor 初始化失败: {e}")
+        elif config.enable_risk_monitor and not RISK_MONITOR_AVAILABLE:
+            logger.warning("[SPL-7a] RiskMonitor 不可用，已跳过")
 
         # 运行状态
         self._running = False
@@ -137,6 +170,16 @@ class LiveTrader:
     def stop(self):
         """停止实时交易"""
         self._running = False
+
+        # ========== SPL-7a: 关闭监控器 ==========
+        if self.risk_monitor:
+            try:
+                self.risk_monitor.shutdown()
+                monitor_stats = self.risk_monitor.get_stats()
+                logger.info(f"[SPL-7a] 监控统计: {monitor_stats}")
+            except Exception as e:
+                logger.error(f"[SPL-7a] 关闭监控器失败: {e}")
+
         logger.info("实时交易已停止")
 
         # 打印统计
@@ -229,6 +272,19 @@ class LiveTrader:
             logger.error(f"获取 {symbol} 数据失败: {e}")
             return
 
+        # ========== SPL-7a Hook 1: Pre-Decision ==========
+        # 更新市场特征和基础风险指标
+        if self.risk_monitor:
+            try:
+                self.risk_monitor.pre_decision_hook(
+                    symbol=symbol,
+                    bar=current_bar,
+                    position=position if 'position' in locals() else None,
+                    context={"mode": self.config.mode.value}
+                )
+            except Exception as e:
+                logger.error(f"[SPL-7a] pre_decision_hook 失败: {e}")
+
         # 如果暂停，不生成信号
         if self._paused:
             return
@@ -300,6 +356,22 @@ class LiveTrader:
 
                     self._notify_order(intent)
 
+                    # ========== SPL-7a Hook 2: Post-Decision ==========
+                    # 记录 gating/allocator 决策结果
+                    if self.risk_monitor:
+                        try:
+                            gating_result = {
+                                "approved": intent.approved,
+                                "risk_reason": intent.risk_reason
+                            }
+                            self.risk_monitor.post_decision_hook(
+                                symbol=symbol,
+                                gating_result=gating_result,
+                                allocator_result=None  # TODO: 添加 allocator 结果
+                            )
+                        except Exception as e:
+                            logger.error(f"[SPL-7a] post_decision_hook 失败: {e}")
+
                     # 5. 提交订单
                     if self.config.mode in [TradingMode.PAPER, TradingMode.LIVE]:
                         order = self.broker.submit_order(intent)
@@ -322,6 +394,18 @@ class LiveTrader:
 
         # 6. 检查紧急止损
         self._check_emergency_stop_loss(position, current_bar)
+
+        # ========== SPL-7a Hook 3: Post-Fill ==========
+        # 更新 PnL/DD/spike 并触发告警判定
+        if self.risk_monitor:
+            try:
+                self.risk_monitor.post_fill_hook(
+                    symbol=symbol,
+                    trade=None,  # TODO: 传入实际成交记录
+                    current_price=float(current_bar.close)
+                )
+            except Exception as e:
+                logger.error(f"[SPL-7a] post_fill_hook 失败: {e}")
 
     def _check_emergency_stop_loss(self, position: Optional[Position], current_bar: Bar):
         """检查紧急止损"""

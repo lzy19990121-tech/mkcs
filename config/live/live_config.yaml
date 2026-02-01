@@ -1,0 +1,66 @@
+# Live Trading Configuration
+# 实时交易配置文件
+
+# 交易模式
+mode: SHADOW  # SHADOW（影子模式，不下单）或 LIVE（真实下单）
+
+# 交易标的
+symbols:
+  - AAPL
+  - MSFT
+  # - GOOGL
+  # - TSLA
+
+# 数据源配置
+data_source:
+  type: yahoo  # yahoo 或 cache
+  enable_cache: true
+  cache_ttl: 300  # 缓存时间（秒）
+
+# 仓位���制
+position_limits:
+  max_single_position: 0.10  # 单个标的最大仓位（10%）
+  max_total_position: 0.95   # 最大总仓位（95%）
+  min_cash_reserve: 0.05      # 最小现金保留（5%）
+
+# 紧急停止（Kill Switch）
+kill_switch:
+  enabled: true
+  max_daily_loss: 0.03  # 单日最大亏损（3%）
+  max_drawdown: 0.10    # 最大回撤（10%）
+  max_spikes: 5         # 最大尖刺次数
+
+# 交易时段
+trading_hours:
+  market_open: "09:30"
+  market_close: "16:00"
+  timezone: "America/New_York"
+  enable_after_hours: false
+
+# 策略配置
+strategy:
+  type: moving_average
+  fast_period: 5
+  slow_period: 20
+
+# 数据更新频率
+check_interval_seconds: 60  # 检查间隔（秒）
+max_daily_signals: 10        # 每日最大信号数
+
+# 输出配置
+output:
+  log_dir: "data/live_logs"
+  snapshot_dir: "data/live_monitoring"
+  artifact_dir: "data/live_artifacts"
+
+# SPL-7a 风险监控配置
+risk_monitor:
+  enabled: true
+  alerts_config: "config/live/alerts.yaml"
+  output_dir: "data/live_monitoring"
+
+# 回测模式配置（用于 shadow run）
+shadow_mode:
+  simulate_orders: true  # 模拟订单但不执行
+  generate_signals: true  # 生成信号
+  record_metrics: true   # 记录指标
