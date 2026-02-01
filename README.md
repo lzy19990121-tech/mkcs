@@ -666,6 +666,244 @@ runs/deep_analysis_v3b/
 4. **风险评估**: 评估最大潜在损失
 5. **可复现性审计**: 确保结果可完全复现
 
+## SPL-7 在线监控与反事实分析系统
+
+### 概述
+
+SPL-7 是完整的运行态风险监控与反事实分析系统，实现了从 CI-only 到 continuous online monitoring 的转变，并能回答"如果当时换了规则会怎样"的问题。
+
+**两个核心模块**:
+- **SPL-7a**: Online Monitoring & Post-mortem Attribution
+- **SPL-7b**: Counterfactual & What-If Risk Analysis
+
+### SPL-7a: 在线监控与事后归因
+
+#### 核心功能
+
+**运行态数据采集**:
+```python
+from analysis.online import RiskMetricsCollector, RiskSignal
+
+# 初始化采集器
+collector = RiskMetricsCollector(strategy_id="my_strategy")
+
+# 每个时间步更新
+signal = collector.update(price=150.0, timestamp=now, position=100.0)
+
+# RiskSignal 包含:
+# - RollingReturnMetrics: 1d/5d/20d/60d 收益
+# - DrawdownMetrics: 当前回撤、最大回撤、持续时间
+# - SpikeMetrics: 最大单步亏损、聚类评分
+# - StabilityMetrics: 稳定性评分、波动率
+# - RegimeFeatures: vol/ADX/spread_cost
+# - GatingEvent/AllocatorEvent: 决策事件
+```
+
+**风险状态机**:
+```python
+from analysis.online import RiskStateMachine, RiskState
+
+# 创建状态机
+machine = RiskStateMachine(strategy_id="my_strategy")
+
+# 更新状态
+transition = machine.update_state(signal)
+if transition:
+    print(f"状态转换: {transition.from_state} → {transition.to_state}")
+
+# RiskState: NORMAL / WARNING / CRITICAL
+# envelope_usage = current_drawdown / envelope_limit
+```
+
+**趋势检测**:
+```python
+from analysis.online import TrendDetector
+
+detector = TrendDetector()
+trend = detector.detect_trend("volatility", timestamps, values)
+# TrendIndicator: direction (UP/DOWN/STABLE), slope, R²
+```
+
+**多渠道告警**:
+```python
+from analysis.online import AlertingManager
+
+manager = AlertingManager()
+alerts = manager.process_risk_update(signal, state, trends, transition)
+# 告警渠道: LOG/Slack/Webhook/Email
+# 告警规则: envelope_approach, spike_surge, gating_frequency_high, etc.
+```
+
+**Post-mortem 自动生成**:
+```python
+from analysis.online import PostMortemGenerator
+
+generator = PostMortemGenerator()
+report = generator.generate_from_gate_event(gating_event)
+# 包含: 触发时间、上下文窗口、指标轨迹、根因分析、建议
+```
+
+**风险事件存储**:
+```python
+from analysis.online import RiskEventStore
+
+store = RiskEventStore("data/risk_events.db")
+store.store_event(event_type="GATING", data=gating_event.to_dict())
+# SQLite 持久化，支持查询和导出到 SPL-7b/SPL-6a
+```
+
+#### 使用场景
+
+1. **运行态监控**: 实时追踪风险指标，早期预警
+2. **事后归因**: 自动生成 post-mortem，理解风险事件
+3. **趋势分析**: 识别风险上升趋势，提前干预
+4. **事件桥接**: 在线事件 → 离线分析（SPL-7b, SPL-6a）
+
+---
+
+### SPL-7b: 反事实与假设分析
+
+#### 核心功能
+
+**场景配置**:
+```python
+from analysis.counterfactual import CounterfactualScenarioLibrary
+
+# 获取预定义场景
+scenarios = CounterfactualScenarioLibrary.get_all_scenarios(["strategy_1"])
+
+# 场景包括:
+# - actual: 真实发生
+# - cf_earlier_gating: 更早/更强的 gating
+# - cf_later_gating: 更晚/更弱的 gating
+# - cf_no_gating: 完全禁用 gating
+# - cf_optimizer: 使用优化器分配
+# - cf_equal_weight: 等权重组合
+```
+
+**并行执行**:
+```python
+from analysis.counterfactual import CounterfactualExperiment
+
+experiment = CounterfactualExperiment(
+    replay_path="runs",
+    strategy_ids=["strategy_1"],
+    max_workers=4
+)
+results = experiment.run_experiment()
+# 同一 replay + 多 decision config 并行运行
+```
+
+**效果量化**:
+```python
+from analysis.counterfactual import EffectCalculator
+
+calculator = EffectCalculator()
+effects = calculator.calculate_effects(actual_result, cf_results)
+
+# EffectMetrics 包含:
+# - avoided_drawdown: 避免的回撤
+# - lost_return: 牺牲的收益
+# - eliminated_spikes: 消除的尖刺
+# - tradeoff_ratio: 权衡比（风险改善/收益牺牲）
+```
+
+**规则评估**:
+```python
+from analysis.counterfactual import RuleEvaluator
+
+evaluator = RuleEvaluator()
+evaluations = evaluator.evaluate_rules(actual_result, cf_results)
+
+# 找出:
+# - 最值钱的规则 (overall_value > 70)
+# - 几乎无贡献的规则 (overall_value < 30)
+# - 需要调整的规则 (overall_value 30-70)
+```
+
+**反馈回流**:
+```python
+from scripts.run_counterfactual_analysis import (
+    run_counterfactual_analysis_and_feedback
+)
+
+report_path, feedback = run_counterfactual_analysis_and_feedback(
+    replay_path="runs",
+    strategy_ids=["strategy_1"]
+)
+
+# feedback["spl6a"]: SPL-6a 再标定建议
+# feedback["spl5"]: SPL-5 规则调整建议
+```
+
+#### 使用场景
+
+1. **What-If 分析**: 如果当时早一点 gating，会不会更好？
+2. **规则优化**: 哪条规则最值钱？哪条可以删？
+3. **Allocator 选择**: 优化器 vs 规则 vs 等权重？
+4. **组合调整**: 排除某个策略对 co-crash 的影响？
+
+---
+
+### 完整工作流程
+
+```python
+# 1. 运行时监控
+collector = RiskMetricsCollector(strategy_id)
+signal = collector.update(price, timestamp, position)
+
+# 2. 状态机判定
+machine = RiskStateMachine(strategy_id)
+transition = machine.update_state(signal)
+
+# 3. 告警
+alerts = alerting_manager.process_risk_update(signal, state, trends)
+
+# 4. Post-mortem 生成
+if gating_event:
+    report = postmortem_generator.generate_from_gate_event(gating_event)
+
+# 5. 事件存储
+risk_event_store.store_event("GATING", gating_event.to_dict())
+
+# 6. 反事实分析
+cf_results = counterfactual_experiment.run_experiment()
+
+# 7. 效果量化
+effects = effect_calculator.calculate_effects(actual, cf_results)
+
+# 8. 规则评估
+evaluations = rule_evaluator.evaluate_rules(actual, cf_results)
+
+# 9. 反馈回流
+spl6a_feedback = feedback_looper.generate_spl6a_feedback(report)
+spl5_feedback = feedback_looper.generate_spl5_feedback(report)
+```
+
+---
+
+### 核心价值
+
+| 能力 | SPL-7a | SPL-7b |
+|------|--------|--------|
+| 今天系统有没有在逼近风险上界？ | ✅ envelope_usage | - |
+| 为什么某次 gate 被触发？ | ✅ PostMortemReport | - |
+| 如果当时早一点 / 换个规则，会不会更好？ | - | ✅ tradeoff_ratio |
+| 哪条规则最值钱？ | - | ✅ overall_value |
+| 哪条规则可以删？ | - | ✅ identify_weak_rules() |
+| 结论都有数据与 replay 证据？ | ✅ RiskEventStore | ✅ CounterfactualResult |
+
+---
+
+### 完整文档
+
+详细实现请参见：
+- **✅ SPL-7验收报告**: `docs/SPL7_ACCEPTANCE_REPORT.md`
+- **📘 Online Risk Events Schema**: `docs/ONLINE_RISK_EVENTS.md`
+- **📋 Post-mortem 模板**: `docs/POST_MORTEM_TEMPLATE.md`
+
+---
+
 ## SPL-4 风险控制与组合加固系统
 
 ### 概述

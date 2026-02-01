@@ -6,6 +6,31 @@
 
 ---
 
+## SPL 风险控制体系完成状态
+
+| SPL 模块 | 描述 | 状态 | 验收报告 |
+|----------|------|------|----------|
+| SPL-3b | 深度风险分析（扰动测试+结构分析+风险包络） | ✅ | - |
+| SPL-4c | 风险回归测试（基线冻结+5大回归） | ✅ | - |
+| SPL-4a | 运行时风险风控（实时指标+ gating） | ✅ | - |
+| SPL-4b | 组合协同风险分析（相关性+co-crash） | ✅ | - |
+| SPL-5 | 规则与 Allocator 风控系统 | ✅ | `docs/SPL-5_ACCEPTANCE_CHECKLIST.md` |
+| SPL-6a | 自适应风控参数标定（闭环优化） | ✅ | `docs/SPL-6-ACCEPTANCE-REPORT.md` |
+| SPL-6b | 组合优化器 v2（约束优化） | ✅ | `docs/SPL-6-ACCEPTANCE-REPORT.md` |
+| SPL-7a | 在线监控与 Post-mortem Attribution | ✅ | `docs/SPL7_ACCEPTANCE_REPORT.md` |
+| SPL-7b | 反事实与 What-If 风险分析 | ✅ | `docs/SPL7_ACCEPTANCE_REPORT.md` |
+
+**核心能力实现**:
+- ✅ 风险可观测: 运行态实时监控（SPL-7a）
+- ✅ 风险可解释: 自动化 post-mortem 归因（SPL-7a）
+- ✅ 风险可复现: 完整事件存储和回放（SPL-7a）
+- ✅ 假设可分析: 并行反事实执行（SPL-7b）
+- ✅ 规则可优化: 数据驱动的规则价值评估（SPL-7b）
+- ✅ 参数可自适应: 闭环参数优化（SPL-6a）
+- ✅ 组合可优化: 约束优化器（SPL-6b）
+
+---
+
 ## 实现概览
 
 ### Phase 1: 基础设施 ✅
