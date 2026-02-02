@@ -64,6 +64,10 @@ class MAStrategy(Strategy):
         curr_fast = fast_mas[-1]
         curr_slow = slow_mas[-1]
 
+        # 计算 ATR (Average True Range) 用于设置止损和目标价
+        atr = self._calculate_atr(bars, 14)
+        current_price = bars[-1].close
+
         # 检测交叉
         signal = None
         symbol = bars[-1].symbol
@@ -72,14 +76,21 @@ class MAStrategy(Strategy):
         if prev_fast <= prev_slow and curr_fast > curr_slow:
             # 如果没有多头持仓，生成买入信号
             if position is None or position.quantity <= 0:
+                # 计算目标价和止��（使用 Decimal 进行计算）
+                target_price = current_price + (atr * Decimal('2'))  # 目标价为当前价 + 2倍ATR
+                stop_loss = current_price - (atr * Decimal('1.5'))    # 止损价为当前价 - 1.5倍ATR
+
                 signal = Signal(
                     symbol=symbol,
                     timestamp=bars[-1].timestamp,
                     action="BUY",
-                    price=bars[-1].close,
+                    price=current_price,
                     quantity=100,  # 默认数量，实际应用中应根据资金管理计算
                     confidence=self._calculate_confidence(curr_fast, curr_slow, "golden_cross"),
-                    reason=f"金叉: 快速均线({self.fast_period})上穿慢速均线({self.slow_period})"
+                    reason=f"金叉: 快速均线({self.fast_period})上穿慢速均线({self.slow_period})",
+                    target_price=target_price,
+                    stop_loss=stop_loss,
+                    time_horizon=120  # 预期持有时间：120小时（5天）
                 )
 
         # 死叉：快速均线从上方穿越慢速均线
@@ -90,13 +101,51 @@ class MAStrategy(Strategy):
                     symbol=symbol,
                     timestamp=bars[-1].timestamp,
                     action="SELL",
-                    price=bars[-1].close,
+                    price=current_price,
                     quantity=abs(position.quantity),  # 卖出全部持仓
                     confidence=self._calculate_confidence(curr_fast, curr_slow, "death_cross"),
                     reason=f"死叉: 快速均线({self.fast_period})下穿慢速均线({self.slow_period})"
                 )
 
         return [signal] if signal else []
+
+    def _calculate_atr(self, bars: List[Bar], period: int = 14) -> Decimal:
+        """计算平均真实波幅 (Average True Range)
+
+        ATR 用于衡量市场波动性，可用于设置止损和目标价格
+
+        Args:
+            bars: K线数据
+            period: 计算周期
+
+        Returns:
+            ATR 值
+        """
+        if len(bars) < period + 1:
+            # 数据不足，使用简单计算
+            total_range = sum((bar.high - bar.low) for bar in bars)
+            return total_range / Decimal(len(bars)) if bars else Decimal('1')
+
+        # 计算每一根K线的 True Range
+        true_ranges = []
+        for i in range(1, len(bars)):
+            prev_close = bars[i - 1].close
+            current_high = bars[i].high
+            current_low = bars[i].low
+
+            # TR = max(high-low, abs(high-prev_close), abs(low-prev_close))
+            tr = max(
+                current_high - current_low,
+                abs(current_high - prev_close),
+                abs(current_low - prev_close)
+            )
+            true_ranges.append(tr)
+
+        # 计算最近 period 个 TR 的平均值
+        recent_tr = true_ranges[-period:] if len(true_ranges) >= period else true_ranges
+        atr = sum(recent_tr) / Decimal(len(recent_tr))
+
+        return atr
 
     def _calculate_sma(self, bars: List[Bar], period: int) -> List[Decimal]:
         """计算简单移动平均线

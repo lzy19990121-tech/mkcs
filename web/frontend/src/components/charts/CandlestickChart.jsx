@@ -33,6 +33,17 @@ const CHART_OPTIONS = {
     timeVisible: true,
     secondsVisible: false,
   },
+  handleScroll: {
+    mouseWheel: true,
+    pressedMouseMove: true,
+    horzTouchDrag: true,
+    vertTouchDrag: true,
+  },
+  handleScale: {
+    mouseWheel: true,
+    pinch: true,
+    axisPressedMouseMove: true,
+  },
 };
 
 function CandlestickChart({
@@ -49,8 +60,15 @@ function CandlestickChart({
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
   const maSeriesRef = useRef({});
-  const [activeMA, setActiveMA] = useState(['ma5', 'ma20']);
+  const sellRangeSeriesRef = useRef([]);
+  const initialLoadRef = useRef(false);
+  const [activeMA, setActiveMA] = useState(['ma5', 'ma20', 'ma50']);
   const [showSellRanges, setShowSellRanges] = useState(true);
+
+  // 重置初始加载标记当 symbol 改变时
+  useEffect(() => {
+    initialLoadRef.current = false;
+  }, [symbol]);
 
   // 初始化图表
   useEffect(() => {
@@ -105,6 +123,21 @@ function CandlestickChart({
     };
   }, []);
 
+  // 清理旧的卖出区间 series
+  useEffect(() => {
+    return () => {
+      // 当组件卸载或symbol变化时，清理所有卖出区间 series
+      if (sellRangeSeriesRef.current && chartRef.current) {
+        sellRangeSeriesRef.current.forEach(series => {
+          if (chartRef.current) {
+            chartRef.current.removeSeries(series);
+          }
+        });
+        sellRangeSeriesRef.current = [];
+      }
+    };
+  }, [symbol]);
+
   // 更新 K 线数据
   useEffect(() => {
     if (!candleSeriesRef.current || bars.length === 0) return;
@@ -119,9 +152,10 @@ function CandlestickChart({
 
     candleSeriesRef.current.setData(chartData);
 
-    // 调整时间范围
-    if (chartRef.current) {
+    // 只在初始加载时调整时间范围，之后保持用户的缩放状态
+    if (chartRef.current && !initialLoadRef.current) {
       chartRef.current.timeScale().fitContent();
+      initialLoadRef.current = true;
     }
   }, [bars]);
 
@@ -202,37 +236,103 @@ function CandlestickChart({
     candleSeriesRef.current.setMarkers(markerData);
   }, [markers]);
 
-  // 更新卖出区间
+  // 更新卖出区间（策略信号矩形区域）
   useEffect(() => {
-    if (!chartRef.current || !showSellRanges || sellRanges.length === 0) return;
+    // 清理旧的卖出区间 series
+    if (sellRangeSeriesRef.current && chartRef.current) {
+      sellRangeSeriesRef.current.forEach(series => {
+        try {
+          chartRef.current.removeSeries(series);
+        } catch (e) {
+          // 忽略已删除的series
+        }
+      });
+      sellRangeSeriesRef.current = [];
+    }
 
-    // 卖出区间使用背景矩形实现
-    // 这里简化处理，实际可以使用 TradingView 的高级功能
-    sellRanges.forEach((range) => {
-      if (range.start_time && range.end_time && range.target_price) {
-        // 可以添加水平线标记目标价格
-        const startTime = range.start_time.split('T')[0];
-        const endTime = range.end_time.split('T')[0];
+    if (!chartRef.current || !showSellRanges || sellRanges.length === 0 || !bars.length) return;
 
-        // 添加目标价格线
-        const targetLine = chartRef.current.addLineSeries({
-          color: '#f59e0b',
-          lineWidth: 2,
-          lineStyle: 2, // 虚线
-          priceLineVisible: false,
-        });
+    // 只处理策略信号（有 stop_loss 的）
+    const strategyRanges = sellRanges.filter(range => range.is_strategy_signal && range.stop_loss);
 
-        targetLine.setData([
-          { time: startTime, value: range.target_price },
-          { time: endTime, value: range.target_price },
-        ]);
-      }
+    if (strategyRanges.length === 0) return;
+
+    // 获取时间范围
+    const firstBarTime = bars[0].timestamp.split('T')[0];
+    const lastBarTime = bars[bars.length - 1].timestamp.split('T')[0];
+
+    strategyRanges.forEach((range) => {
+      const stopLoss = range.stop_loss;
+      const targetPrice = range.target_price;
+
+      if (!stopLoss || !targetPrice) return;
+
+      // 创建填充区域（使用 area series）
+      // 我们需要创建一个从止损价到目标价的区域
+      const areaSeries = chartRef.current.addAreaSeries({
+        topColor: 'rgba(82, 196, 26, 0.2)',        // 浅绿色，透明度20%
+        bottomColor: 'rgba(82, 196, 26, 0.05)',     // 更浅的绿色，透明度5%
+        lineColor: 'transparent',                   // 隐藏边线
+        lineWidth: 0,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        priceScaleId: '',  // 使用默认价格刻度
+      });
+
+      // 创建区域数据
+      // 上边界是目标价
+      const areaData = bars.map(bar => ({
+        time: bar.timestamp.split('T')[0],
+        value: targetPrice
+      }));
+
+      areaSeries.setData(areaData);
+
+      // 添加目标价格线（实线，绿色）
+      const targetLine = chartRef.current.addLineSeries({
+        color: '#52c41a',              // 绿色
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        lastValueText: `目标 $${targetPrice.toFixed(2)}`,
+        priceFormat: {
+          type: 'price',
+          precision: 2,
+          minMove: 0.01,
+        },
+      });
+
+      const targetLineData = bars.map(bar => ({
+        time: bar.timestamp.split('T')[0],
+        value: targetPrice
+      }));
+      targetLine.setData(targetLineData);
+
+      // 添加止损价格线（虚线，红色）
+      const stopLossLine = chartRef.current.addLineSeries({
+        color: '#f5222d',              // 红色
+        lineWidth: 2,
+        lineStyle: 2,                  // 虚线
+        priceLineVisible: false,
+        lastValueVisible: true,
+        lastValueText: `止损 $${stopLoss.toFixed(2)}`,
+      });
+
+      const stopLossLineData = bars.map(bar => ({
+        time: bar.timestamp.split('T')[0],
+        value: stopLoss
+      }));
+      stopLossLine.setData(stopLossLineData);
+
+      // 保存引用以便清理
+      sellRangeSeriesRef.current.push(areaSeries, targetLine, stopLossLine);
     });
-  }, [sellRanges, showSellRanges]);
+  }, [sellRanges, showSellRanges, bars]);
 
   // MA 切换
   const handleMAChange = (value) => {
-    setActiveMA(value);
+    // 确保 value 始终是数组
+    setActiveMA(Array.isArray(value) ? value : [value]);
   };
 
   return (
@@ -261,7 +361,6 @@ function CandlestickChart({
             value={activeMA}
             onChange={handleMAChange}
             multiple
-            allowClear
           />
           <Button
             size="small"
@@ -291,6 +390,7 @@ function CandlestickChart({
           height: 400,
           borderRadius: 8,
           overflow: 'hidden',
+          pointerEvents: 'auto',
         }}
       />
     </div>

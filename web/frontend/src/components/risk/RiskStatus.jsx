@@ -13,6 +13,9 @@ const { Text } = Typography;
 function RiskStatus({ riskStatus, positions = {}, performance = {} }) {
   const traderStatus = useMarketStore((state) => state.traderStatus);
 
+  // 安全检查：确保 performance 不是 null
+  const safePerformance = performance || {};
+
   // 计算仓位集中度
   const totalValue = Object.values(positions).reduce((sum, p) => sum + (p.market_value || 0), 0);
   const positionRatios = Object.values(positions).map((pos) => ({
@@ -70,7 +73,7 @@ function RiskStatus({ riskStatus, positions = {}, performance = {} }) {
         <Col span={12}>
           <Statistic
             title="总权益"
-            value={performance.total_equity || 0}
+            value={safePerformance.total_equity || 0}
             prefix="$"
             precision={2}
             valueStyle={{ color: '#3fb950' }}
@@ -79,10 +82,10 @@ function RiskStatus({ riskStatus, positions = {}, performance = {} }) {
         <Col span={12}>
           <Statistic
             title="今日盈亏"
-            value={performance.total_pnl || 0}
+            value={safePerformance.total_pnl || 0}
             prefix="$"
             precision={2}
-            valueStyle={{ color: (performance.total_pnl || 0) >= 0 ? '#3fb950' : '#f85149' }}
+            valueStyle={{ color: (safePerformance.total_pnl || 0) >= 0 ? '#3fb950' : '#f85149' }}
           />
         </Col>
       </Row>
@@ -91,15 +94,15 @@ function RiskStatus({ riskStatus, positions = {}, performance = {} }) {
         <Col span={12}>
           <Statistic
             title="交易次数"
-            value={performance.total_trades || 0}
+            value={safePerformance.total_trades || 0}
           />
         </Col>
         <Col span={12}>
           <Statistic
             title="胜率"
-            value={performance.win_rate || 0}
+            value={safePerformance.win_rate || 0}
             suffix="%"
-            valueStyle={{ color: (performance.win_rate || 0) >= 50 ? '#3fb950' : '#f85149' }}
+            valueStyle={{ color: (safePerformance.win_rate || 0) >= 50 ? '#3fb950' : '#f85149' }}
           />
         </Col>
       </Row>

@@ -29,6 +29,20 @@ mkcs/
 │   ├── replay_engine.py       # 回放引擎
 │   ├── live_runner.py         # 实时交易
 │   └── health_monitor.py      # 健康监控
+├── web/                # Web UI
+│   ├── app.py                 # Flask后端
+│   ├── api/                   # REST API
+│   ├── services/              # 业务服务
+│   ├── db/                    # 数据库模型
+│   ├── socketio_server.py     # WebSocket服务
+│   └── frontend/              # React前端
+│       ├── src/
+│       │   ├── components/    # 组件
+│       │   ├── pages/         # 页面
+│       │   ├── hooks/         # 自定义Hooks
+│       │   ├── stores/        # 状态管理
+│       │   └── services/      # API服务
+│       └── package.json
 ├── analysis/           # 风险分析模块
 │   ├── replay_schema.py       # ���一输出格式
 │   ├── window_scanner.py      # 窗口扫描器
@@ -135,12 +149,43 @@ python -c "from analysis import generate_risk_cards; generate_risk_cards('runs',
 
 ### 5. Paper模式（实时数据）
 
+#### 命令行方式
+
 ```bash
 python -m agent.live_runner --mode paper \
     --symbols AAPL MSFT \
     --interval 1m \
     --cash 100000
 ```
+
+#### Web UI方式（推荐）
+
+启动后端服务：
+
+```bash
+# 设置Python路径并启动
+export PYTHONPATH=/home/neal/mkcs:$PYTHONPATH
+python web/app.py --host 0.0.0.0 --port 5000 --debug
+```
+
+启动前端开发服务器：
+
+```bash
+cd web/frontend
+npm install
+npm run dev
+```
+
+访问 `http://localhost:5173` 打开实时交易界面。
+
+**Web UI功能**：
+- 📊 实时行情和K线图
+- 📈 策略信号显示（目标价/止损价区间）
+- 🔔 价格触及提醒（观察列表高亮）
+- 💰 模拟交易（买入/卖出）
+- 📋 持仓和风控状态
+- 📝 买卖点标注
+- ⏰ 时间周期切换（1分/15分/日K）
 
 **⚠️ 重要提示**：
 - Paper模式使用Yahoo Finance实时数据

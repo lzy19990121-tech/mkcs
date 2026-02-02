@@ -98,6 +98,9 @@ class Signal:
         quantity: 建议数量
         confidence: 信号强度 0-1
         reason: 信号原因
+        target_price: 目标价格（止盈价，可选）
+        stop_loss: 止损价（可选）
+        time_horizon: 预期持有时间（小时，可选）
     """
     symbol: str
     timestamp: datetime
@@ -106,6 +109,9 @@ class Signal:
     quantity: int
     confidence: float
     reason: str
+    target_price: Decimal = None
+    stop_loss: Decimal = None
+    time_horizon: int = None
 
     def __post_init__(self):
         """验证数据有效性"""
@@ -117,6 +123,21 @@ class Signal:
             raise ValueError(f"数量必须为正数: {self.quantity}")
         if not 0 <= self.confidence <= 1:
             raise ValueError(f"信号强度必须在0-1之间: {self.confidence}")
+        # 验证目标价格和止损价
+        if self.target_price is not None and self.target_price <= 0:
+            raise ValueError(f"目标价格必须为正数: {self.target_price}")
+        if self.stop_loss is not None and self.stop_loss <= 0:
+            raise ValueError(f"止损价必须为正数: {self.stop_loss}")
+        # 买入信号：目标价 > 当前价 > 止损价
+        if self.action == 'BUY':
+            if self.target_price is not None and self.target_price <= self.price:
+                raise ValueError(f"买入信号的目标价必须高于当前价: {self.target_price} <= {self.price}")
+            if self.stop_loss is not None and self.stop_loss >= self.price:
+                raise ValueError(f"买入信号的止损价必须低于当前价: {self.stop_loss} >= {self.price}")
+        # 卖出信号：当前价 > 目标价 > 止损价（如果是做空）
+        elif self.action == 'SELL':
+            if self.target_price is not None and self.target_price >= self.price:
+                raise ValueError(f"卖出信号的目标价必须低于当前价: {self.target_price} >= {self.price}")
 
 
 @dataclass(frozen=True)

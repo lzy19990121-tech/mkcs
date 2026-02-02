@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Row, Col, Card, Table, Tag, Typography, Space, Statistic, Timeline, Badge } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Row, Col, Card, Table, Tag, Typography, Space, Statistic, Timeline, Badge, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   DollarOutlined,
@@ -8,10 +8,13 @@ import {
   StockOutlined,
   TrophyOutlined,
   ThunderboltOutlined,
+  AlertOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import useMarketStore from '../stores/marketStore';
 import { useWatchlist, usePerformance, useOrders } from '../hooks/useMarketData';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { stocksAPI } from '../services/api';
 
 const { Text } = Typography;
 
@@ -24,6 +27,9 @@ function Dashboard() {
   const performance = useMarketStore((state) => state.performance);
   const realtimePrices = useMarketStore((state) => state.realtimePrices);
 
+  // 策略信号状态
+  const [strategySignals, setStrategySignals] = useState({});
+
   // 获取数据
   useWatchlist();
   usePerformance();
@@ -33,14 +39,93 @@ function Dashboard() {
   const symbols = watchlist.map((w) => w.symbol);
   useWebSocket(symbols);
 
+  // 获取策略信号
+  useEffect(() => {
+    const fetchSignals = async () => {
+      const signals = {};
+      for (const symbol of symbols) {
+        try {
+          const data = await stocksAPI.getSignals(symbol, { interval: '1d', days: 90 });
+          if (data && data.length > 0) {
+            signals[symbol] = data[0]; // 取最新信号
+          }
+        } catch (error) {
+          console.error(`Failed to fetch signals for ${symbol}:`, error);
+        }
+      }
+      setStrategySignals(signals);
+    };
+
+    if (symbols.length > 0) {
+      fetchSignals();
+      // 每30秒刷新一次信号
+      const interval = setInterval(fetchSignals, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [symbols]);
+
+  // 检查价格是否触及目标价或止损价
+  const getPriceAlert = (symbol, currentPrice) => {
+    const signal = strategySignals[symbol];
+    if (!signal || !signal.sell_ranges || signal.sell_ranges.length === 0) {
+      return null;
+    }
+
+    const range = signal.sell_ranges[0];
+    const targetPrice = range.target_price;
+    const stopLoss = range.stop_loss;
+
+    if (!targetPrice || !stopLoss || !currentPrice) return null;
+
+    // 计算距离目标价和止损价的百分比
+    const distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
+    const distanceToStop = ((currentPrice - stopLoss) / currentPrice) * 100;
+
+    // 如果价格在目标价的 ±2% 范围内
+    if (Math.abs(distanceToTarget) <= 2) {
+      return {
+        type: 'target',
+        message: `接近目标价 $${targetPrice.toFixed(2)}`,
+        color: 'green',
+      };
+    }
+
+    // 如果价格触及或跌破止损价
+    if (distanceToStop <= 0) {
+      return {
+        type: 'stop',
+        message: `触及止损价 $${stopLoss.toFixed(2)}`,
+        color: 'red',
+      };
+    }
+
+    // 如果距离止损价很近（2%以内）
+    if (distanceToStop <= 2) {
+      return {
+        type: 'warning',
+        message: `接近止损价 $${stopLoss.toFixed(2)}`,
+        color: 'orange',
+      };
+    }
+
+    return null;
+  };
+
   // 合并观察列表和实时价格
-  const watchlistData = watchlist.map((item) => ({
-    ...item,
-    price: realtimePrices[item.symbol]?.mid_price || item.quote?.mid_price,
-    change: item.quote?.change,
-    change_pct: item.quote?.change_pct,
-    position: positions[item.symbol],
-  }));
+  const watchlistData = watchlist.map((item) => {
+    const currentPrice = realtimePrices[item.symbol]?.price || realtimePrices[item.symbol]?.mid_price || item.price;
+    const alert = getPriceAlert(item.symbol, currentPrice);
+
+    return {
+      ...item,
+      price: currentPrice,
+      change: item.change,
+      change_pct: item.change_pct,
+      position: positions[item.symbol],
+      alert,
+      signal: strategySignals[item.symbol],
+    };
+  });
 
   // 表格列定义
   const columns = [
@@ -97,6 +182,40 @@ function Dashboard() {
             </Text>
           </Space>
         );
+      },
+    },
+    {
+      title: '策略提醒',
+      key: 'alert',
+      align: 'center',
+      render: (_, record) => {
+        if (record.alert) {
+          return (
+            <Tooltip title={record.alert.message}>
+              <Tag
+                color={record.alert.color}
+                icon={record.alert.type === 'target' ? <CheckCircleOutlined /> : <AlertOutlined />}
+                style={{ cursor: 'pointer' }}
+              >
+                {record.alert.type === 'target' ? '目标价' : record.alert.type === 'stop' ? '止损' : '注意'}
+              </Tag>
+            </Tooltip>
+          );
+        }
+
+        // 显示策略信号状态
+        if (record.signal) {
+          const signal = record.signal;
+          return (
+            <Tooltip title={`${signal.reason} (置信度: ${(signal.confidence * 100).toFixed(0)}%)`}>
+              <Tag color="blue" style={{ fontSize: 11 }}>
+                {signal.action === 'BUY' ? '买入信号' : '卖出信号'}
+              </Tag>
+            </Tooltip>
+          );
+        }
+
+        return <Text type="secondary" style={{ fontSize: 11 }}>-</Text>;
       },
     },
     {

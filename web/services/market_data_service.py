@@ -5,7 +5,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 from typing import List as TypingList
@@ -44,7 +44,7 @@ class MarketDataService:
             List of bar dictionaries with OHLCV data
         """
         try:
-            end = datetime.utcnow()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=days)
 
             bars = self._data_source.get_bars(

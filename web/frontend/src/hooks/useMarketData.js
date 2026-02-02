@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { stocksAPI } from '../services/api';
+import { stocksAPI, riskAPI } from '../services/api';
 import useMarketStore from '../stores/marketStore';
 
 export function useWatchlist() {
@@ -44,7 +44,7 @@ export function useWatchlist() {
   };
 }
 
-export function useBars(symbol, interval = '1d', days = 90) {
+export function useBars(symbol, interval = '1d', days = 90, maPeriods = [5, 20, 50]) {
   const bars = useMarketStore((state) => state.bars[symbol]);
   const maData = useMarketStore((state) => state.maData[symbol]);
   const setBars = useMarketStore((state) => state.setBars);
@@ -52,25 +52,44 @@ export function useBars(symbol, interval = '1d', days = 90) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
 
-  const fetchBars = useCallback(async () => {
-    if (!symbol) return;
+  // 使用 ref 来追踪当前参数，避免依赖数组问题
+  const paramsRef = React.useRef({ symbol, interval, days, maPeriods });
+
+  // 使用 ref 存储 fetchBars，避免依赖变化
+  const fetchBarsRef = React.useRef(async () => {
+    const params = paramsRef.current;
+    if (!params.symbol) return;
+
+    const maString = params.maPeriods.join(',');
     setLoading(true);
     setError(null);
+
     try {
-      const data = await stocksAPI.getBars(symbol, { interval, days });
-      setBars(symbol, data.bars);
-      setMAData(symbol, data.ma);
+      const data = await stocksAPI.getBars(params.symbol, {
+        interval: params.interval,
+        days: params.days,
+        ma: maString
+      });
+      setBars(params.symbol, data.bars);
+      setMAData(params.symbol, data.ma);
     } catch (err) {
       setError(err);
-      console.error(`Failed to fetch bars for ${symbol}:`, err);
+      console.error(`Failed to fetch bars for ${params.symbol}:`, err);
     } finally {
       setLoading(false);
     }
-  }, [symbol, interval, days, setBars, setMAData]);
+  });
 
+  // 稳定的 fetchBars 函数
+  const fetchBars = React.useCallback(() => {
+    fetchBarsRef.current();
+  }, []);
+
+  // 更新 ref 并触发 fetch 当参数改变时
   useEffect(() => {
+    paramsRef.current = { symbol, interval, days, maPeriods };
     fetchBars();
-  }, [fetchBars]);
+  }, [symbol, interval, days, maPeriods.join(',')]); // 使用 join(',') 避免数组引用问题
 
   return { bars, maData, loading, error, refetch: fetchBars };
 }
@@ -112,7 +131,7 @@ export function usePerformance() {
 
   const fetchPerformance = useCallback(async () => {
     try {
-      const perf = await stocksAPI.getPerformance();
+      const perf = await riskAPI.getPerformance();
       setPerformance(perf);
     } catch (error) {
       console.error('Failed to fetch performance:', error);
@@ -121,7 +140,7 @@ export function usePerformance() {
 
   const fetchRiskStatus = useCallback(async () => {
     try {
-      const status = await stocksAPI.getStatus();
+      const status = await riskAPI.getStatus();
       setRiskStatus(status);
     } catch (error) {
       console.error('Failed to fetch risk status:', error);

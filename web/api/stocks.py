@@ -130,3 +130,106 @@ def get_price(symbol: str):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@stocks_bp.route('/<symbol>/signals', methods=['GET'])
+def get_signals(symbol: str):
+    """
+    获取策略信号和卖出区间
+
+    Query params:
+        interval: K线周期 - 默认 '1d'
+        days: 数据天数 - 默认 90
+    """
+    try:
+        from decimal import Decimal
+        from core.models import Bar
+        from skills.strategy.moving_average import MAStrategy
+
+        interval = request.args.get('interval', '1d')
+        days = int(request.args.get('days', 90))
+
+        # 获取K线数据
+        bars_data = market_data_service.get_bars_with_ma(
+            symbol=symbol.upper(),
+            interval=interval,
+            days=days,
+            ma_periods=[5, 20]
+        )
+
+        if not bars_data or not bars_data.get('bars'):
+            return jsonify([])
+
+        # 转换为 Bar 对象
+        bars = []
+        for bar_data in bars_data['bars']:
+            bars.append(Bar(
+                symbol=symbol.upper(),
+                timestamp=datetime.fromisoformat(bar_data['timestamp'].replace('Z', '+00:00')),
+                open=Decimal(str(bar_data['open'])),
+                high=Decimal(str(bar_data['high'])),
+                low=Decimal(str(bar_data['low'])),
+                close=Decimal(str(bar_data['close'])),
+                volume=bar_data.get('volume', 0),
+                interval=interval
+            ))
+
+        # 使用策略生成信号
+        strategy = MAStrategy(fast_period=5, slow_period=20)
+        signals = strategy.generate_signals(bars)
+
+        # 转换信号为 JSON
+        result = []
+        for signal in signals:
+            # 如果有目标价格，生成卖出区间
+            sell_ranges = []
+            if signal.target_price:
+                # 计算预期时间范围
+                from datetime import timedelta
+                time_horizon = signal.time_horizon or 120  # 默认120小时
+                start_time = signal.timestamp
+                end_time = signal.timestamp + timedelta(hours=time_horizon)
+
+                # 创建价格区间（目标价 ± 5%）
+                target_price = float(signal.target_price)
+                price_range = target_price * 0.05
+                upper_bound = target_price + price_range
+                lower_bound = max(target_price - price_range, float(signal.price))
+
+                sell_ranges.append({
+                    'id': f"signal_{signal.symbol}_{signal.timestamp.timestamp()}",
+                    'symbol': signal.symbol,
+                    'start_time': start_time.isoformat(),
+                    'end_time': end_time.isoformat(),
+                    'target_price': target_price,
+                    'price_range': {
+                        'lower': lower_bound,
+                        'upper': upper_bound
+                    },
+                    'stop_loss': float(signal.stop_loss) if signal.stop_loss else None,
+                    'action': signal.action,
+                    'reason': signal.reason,
+                    'confidence': signal.confidence,
+                    'current_price': float(signal.price),
+                    'is_strategy_signal': True  # 标记为策略信号
+                })
+
+            result.append({
+                'symbol': signal.symbol,
+                'action': signal.action,
+                'price': float(signal.price),
+                'target_price': float(signal.target_price) if signal.target_price else None,
+                'stop_loss': float(signal.stop_loss) if signal.stop_loss else None,
+                'confidence': signal.confidence,
+                'reason': signal.reason,
+                'timestamp': signal.timestamp.isoformat(),
+                'time_horizon': signal.time_horizon,
+                'sell_ranges': sell_ranges
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

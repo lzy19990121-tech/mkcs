@@ -34,6 +34,9 @@ export const stocksAPI = {
 
   // 获取最新价格
   getPrice: (symbol) => api.get(`/stocks/${symbol}/price`),
+
+  // 获取策略信号和卖出区间
+  getSignals: (symbol, params = {}) => api.get(`/stocks/${symbol}/signals`, { params }),
 };
 
 // ============ Orders API ============
