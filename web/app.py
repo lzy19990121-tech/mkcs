@@ -298,7 +298,7 @@ def main():
     if args.debug:
         # 开发模式：使用 socketio.run
         if hasattr(app, 'socketio'):
-            app.socketio.run(app, host=args.host, port=args.port, debug=args.debug)
+            app.socketio.run(app, host=args.host, port=args.port, debug=args.debug, allow_unsafe_werkzeug=True)
         else:
             app.run(host=args.host, port=args.port, debug=args.debug)
     else:
