@@ -1,0 +1,30 @@
+# MKCS Web UI Dependencies
+# Install: pip install -r requirements-web.txt
+
+# Web Framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# WebSocket
+flask-socketio>=5.3.0
+python-socketio>=5.10.0
+eventlet>=0.33.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Existing MKCS dependencies (for reference)
+# These should already be installed from requirements.txt:
+# python-dateutil>=2.8.2
+# yfinance>=0.2.28
+# pandas>=2.0.0
+# numpy>=1.24.0
+# scikit-learn>=1.3.0
+# tensorflow>=2.15.0
+# rich>=13.7.0
+# textual>=0.47.0
+# pytest>=7.4.0
+# pytest-cov>=4.1.0
+# black>=23.7.0
+# flake8>=6.1.0
+# mypy>=1.5.0
