@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>API 测试</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #0d1117; color: #fff; }
+        .stock { border: 1px solid #30363d; padding: 10px; margin: 10px 0; border-radius: 8px; }
+        .price { color: #3fb950; font-size: 24px; }
+    </style>
+</head>
+<body>
+    <h1>股票数据测试</h1>
+    <div id="result">加载中...</div>
+    <script>
+        fetch('/api/stocks')
+            .then(r => r.json())
+            .then(data => {
+                let html = '<h2>观察列表 (' + data.length + ' 个股票)</h2>';
+                data.forEach(stock => {
+                    html += `<div class="stock">
+                        <strong>${stock.symbol}</strong> - ${stock.display_name}<br>
+                        <span class="price">$${stock.price?.toFixed(2) || 'N/A'}</span>
+                    </div>`;
+                });
+                document.getElementById('result').innerHTML = html;
+            })
+            .catch(err => {
+                document.getElementById('result').innerHTML = '<p style="color:red">错误: ' + err + '</p>';
+            });
+    </script>
+</body>
+</html>

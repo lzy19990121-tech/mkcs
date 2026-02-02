@@ -65,10 +65,10 @@ function CandlestickChart({
   const [activeMA, setActiveMA] = useState(['ma5', 'ma20', 'ma50']);
   const [showSellRanges, setShowSellRanges] = useState(true);
 
-  // 重置初始加载标记当 symbol 改变时
+  // 重置初始加载标记当 symbol 或 interval 改变时
   useEffect(() => {
     initialLoadRef.current = false;
-  }, [symbol]);
+  }, [symbol, interval]);
 
   // 初始化图表
   useEffect(() => {

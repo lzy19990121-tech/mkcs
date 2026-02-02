@@ -85,8 +85,14 @@ function Dashboard() {
     if (Math.abs(distanceToTarget) <= 2) {
       return {
         type: 'target',
-        message: `接近目标价 $${targetPrice.toFixed(2)}`,
+        message: `当前: $${currentPrice.toFixed(2)} | 目标: $${targetPrice.toFixed(2)} | 差距: ${distanceToTarget.toFixed(1)}%`,
+        shortMessage: `接近目标 $${targetPrice.toFixed(2)}`,
         color: 'green',
+        currentPrice,
+        targetPrice,
+        stopLoss,
+        distanceToTarget,
+        distanceToStop
       };
     }
 
@@ -94,8 +100,14 @@ function Dashboard() {
     if (distanceToStop <= 0) {
       return {
         type: 'stop',
-        message: `触及止损价 $${stopLoss.toFixed(2)}`,
+        message: `当前: $${currentPrice.toFixed(2)} | 止损: $${stopLoss.toFixed(2)} | 已跌破 ${Math.abs(distanceToStop).toFixed(1)}%`,
+        shortMessage: `触及止损 $${stopLoss.toFixed(2)}`,
         color: 'red',
+        currentPrice,
+        targetPrice,
+        stopLoss,
+        distanceToTarget,
+        distanceToStop
       };
     }
 
@@ -103,8 +115,14 @@ function Dashboard() {
     if (distanceToStop <= 2) {
       return {
         type: 'warning',
-        message: `接近止损价 $${stopLoss.toFixed(2)}`,
+        message: `当前: $${currentPrice.toFixed(2)} | 止损: $${stopLoss.toFixed(2)} | 差距: ${distanceToStop.toFixed(1)}%`,
+        shortMessage: `接近止损 $${stopLoss.toFixed(2)}`,
         color: 'orange',
+        currentPrice,
+        targetPrice,
+        stopLoss,
+        distanceToTarget,
+        distanceToStop
       };
     }
 
@@ -185,9 +203,79 @@ function Dashboard() {
       },
     },
     {
-      title: '策略提醒',
+      title: '目标/止损',
+      key: 'target_stop',
+      align: 'center',
+      width: 200,
+      render: (_, record) => {
+        const signal = record.signal;
+        if (!signal || !signal.sell_ranges || signal.sell_ranges.length === 0) {
+          return <Text type="secondary" style={{ fontSize: 11 }}>-</Text>;
+        }
+
+        const range = signal.sell_ranges[0];
+        const targetPrice = range.target_price;
+        const stopLoss = range.stop_loss;
+        const currentPrice = record.price;
+
+        // 计算进度条（当前价格相对于目标价和止损价的位置）
+        const totalRange = targetPrice - stopLoss;
+        const currentPosition = currentPrice - stopLoss;
+        const progressPercent = Math.max(0, Math.min(100, (currentPosition / totalRange) * 100));
+
+        return (
+          <Tooltip
+            title={
+              <div style={{ fontSize: 12 }}>
+                <div style={{ marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                  <strong>提醒时刻价格: ${record.alert?.currentPrice?.toFixed(2) || currentPrice?.toFixed(2)}</strong>
+                </div>
+                <div>当前价: <strong>${currentPrice?.toFixed(2)}</strong></div>
+                <div>目标价: <span style={{ color: '#52c41a' }}>${targetPrice?.toFixed(2)}</span></div>
+                <div>止损价: <span style={{ color: '#f5222d' }}>${stopLoss?.toFixed(2)}</span></div>
+                <div>距离目标: {(((targetPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%</div>
+                <div>距离止损: {(((currentPrice - stopLoss) / currentPrice) * 100).toFixed(1)}%</div>
+              </div>
+            }
+          >
+            <div style={{ cursor: 'pointer' }}>
+              <div style={{ fontSize: 11, marginBottom: 2 }}>
+                <Text type="success" strong>${targetPrice?.toFixed(1)}</Text>
+                <Text type="secondary" style={{ margin: '0 4px' }}>/</Text>
+                <Text type="danger" strong>${stopLoss?.toFixed(1)}</Text>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: 4,
+                  backgroundColor: '#f0f0f0',
+                  borderRadius: 2,
+                  position: 'relative',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    height: '100%',
+                    width: `${progressPercent}%`,
+                    backgroundColor: progressPercent > 80 ? '#52c41a' : progressPercent < 20 ? '#f5222d' : '#faad14',
+                    borderRadius: 2,
+                    transition: 'all 0.3s',
+                  }}
+                />
+              </div>
+            </div>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '提醒',
       key: 'alert',
       align: 'center',
+      width: 100,
       render: (_, record) => {
         if (record.alert) {
           return (
@@ -197,7 +285,7 @@ function Dashboard() {
                 icon={record.alert.type === 'target' ? <CheckCircleOutlined /> : <AlertOutlined />}
                 style={{ cursor: 'pointer' }}
               >
-                {record.alert.type === 'target' ? '目标价' : record.alert.type === 'stop' ? '止损' : '注意'}
+                {record.alert.shortMessage}
               </Tag>
             </Tooltip>
           );

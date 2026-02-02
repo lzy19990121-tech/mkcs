@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SymbolDetail 测试</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #0d1117; color: #fff; }
+        .section { border: 1px solid #30363d; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .success { color: #3fb950; }
+        .error { color: #f85149; }
+        .loading { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>SymbolDetail API 测试</h1>
+    
+    <div class="section">
+        <h2>1. K线数据</h2>
+        <div id="bars" class="loading">加载中...</div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 实时报价</h2>
+        <div id="quote" class="loading">��载中...</div>
+    </div>
+    
+    <div class="section">
+        <h2>3. 持仓数据</h2>
+        <div id="position" class="loading">加载中...</div>
+    </div>
+    
+    <div class="section">
+        <h2>4. 绩效数据</h2>
+        <div id="performance" class="loading">加载中...</div>
+    </div>
+
+    <script>
+        const symbol = 'AAPL';
+        
+        // 测试 K线数据
+        fetch(`/api/stocks/${symbol}/bars?interval=1d&days=30`)
+            .then(r => r.json())
+            .then(data => {
+                const bars = data.bars || [];
+                if (bars.length > 0) {
+                    document.getElementById('bars').innerHTML = 
+                        `<span class="success">✓ 成功获取 ${bars.length} 条K线</span><br>` +
+                        `最新: ${bars[bars.length-1].timestamp}<br>` +
+                        `收盘: $${bars[bars.length-1].close}`;
+                } else {
+                    document.getElementById('bars').innerHTML = '<span class="error">✗ 无K线数据</span>';
+                }
+            })
+            .catch(err => {
+                document.getElementById('bars').innerHTML = `<span class="error">✗ 错误: ${err.message}</span>`;
+            });
+        
+        // 测试报价
+        fetch(`/api/stocks/${symbol}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('quote').innerHTML = 
+                    `<span class="success">✓ 当前价格: $${data.quote?.mid_price || 'N/A'}</span><br>` +
+                    `买一: $${data.quote?.bid_price || 'N/A'}<br>` +
+                    `卖一: $${data.quote?.ask_price || 'N/A'}`;
+            })
+            .catch(err => {
+                document.getElementById('quote').innerHTML = `<span class="error">✗ 错误: ${err.message}</span>`;
+            });
+        
+        // 测试持仓
+        fetch('/api/risk/positions')
+            .then(r => r.json())
+            .then(data => {
+                const hasPosition = data[symbol];
+                if (hasPosition) {
+                    document.getElementById('position').innerHTML = 
+                        `<span class="success">✓ 有持仓: ${hasPosition.quantity} 股</span>`;
+                } else {
+                    document.getElementById('position').innerHTML = '<span class="success">✓ 无持仓 (正常)</span>';
+                }
+            })
+            .catch(err => {
+                document.getElementById('position').innerHTML = `<span class="error">✗ 错误: ${err.message}</span>`;
+            });
+        
+        // 测试绩效
+        fetch('/api/risk/performance')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('performance').innerHTML = 
+                    `<span class="success">✓ 总权益: $${data.total_equity?.toFixed(2)}</span><br>` +
+                    `今日盈亏: $${data.total_pnl?.toFixed(2)}<br>` +
+                    `胜率: ${data.win_rate}%`;
+            })
+            .catch(err => {
+                document.getElementById('performance').innerHTML = `<span class="error">✗ 错误: ${err.message}</span>`;
+            });
+    </script>
+</body>
+</html>
