@@ -74,3 +74,7 @@ Thumbs.db
 data/
 outputs/
 *.bak
+node_modules/
+.vite/
+debug/
+dist/

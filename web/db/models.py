@@ -70,6 +70,32 @@ class SellRange(Base):
     )
 
 
+class PriceAlert(Base):
+    """价格触及提醒记录
+
+    记录当价格触及目标价或止损价时的实际时刻和市场价格
+    """
+
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    alert_type = Column(String(20), nullable=False)  # 'target', 'stop', 'warning'
+    target_price = Column(Float, nullable=False)  # 策略目标价
+    stop_loss = Column(Float, nullable=False)     # 策略止损价
+    trigger_price = Column(Float, nullable=False) # 触发提醒时的市场价格
+    signal_timestamp = Column(DateTime, nullable=False)  # 信号生成时间
+    triggered_at = Column(DateTime, default=datetime.utcnow)  # 实际提醒时间
+    is_triggered = Column(Integer, default=1)  # 是否已触发（1=是，0=否，用于未来扩展）
+    notes = Column(Text, nullable=True)
+
+    # 索引
+    __table_args__ = (
+        Index('idx_price_alerts_symbol', 'symbol'),
+        Index('idx_price_alerts_triggered', 'triggered_at'),
+    )
+
+
 class TradeRecord(Base):
     """交易记录（用户手动记录或系统成交）"""
 
