@@ -12,6 +12,17 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    // 忽略取消请求的错误（包括 CancelToken 和 AbortController）
+    const isCanceled = axios.isCancel(error) ||
+                        error.code === 'ERR_CANCELED' ||
+                        error.code === 'ECONNABORTED' ||
+                        error.message?.includes('canceled') ||
+                        error.message?.includes('aborted');
+
+    if (isCanceled) {
+      // 静默处理，不记录任何日志
+      return Promise.reject({ canceled: true });
+    }
     console.error('API Error:', error.response?.data || error.message);
     throw error;
   }
@@ -21,88 +32,97 @@ api.interceptors.response.use(
 
 export const stocksAPI = {
   // 获取观察列表
-  list: () => api.get('/stocks'),
+  list: (signal) => api.get('/stocks', signal ? { signal } : undefined),
 
   // 获取单个股票信息
-  get: (symbol) => api.get(`/stocks/${symbol}`),
+  get: (symbol, signal) => api.get(`/stocks/${symbol}`, signal ? { signal } : undefined),
 
   // 获取 K 线数据
-  getBars: (symbol, params = {}) => api.get(`/stocks/${symbol}/bars`, { params }),
+  getBars: (symbol, params = {}, signal) => api.get(`/stocks/${symbol}/bars`, {
+    params,
+    signal: signal || undefined,
+  }),
 
   // 获取实时报价
-  getQuote: (symbol) => api.get(`/stocks/${symbol}/quote`),
+  getQuote: (symbol, signal) => api.get(`/stocks/${symbol}/quote`, signal ? { signal } : undefined),
 
   // 获取最新价格
-  getPrice: (symbol) => api.get(`/stocks/${symbol}/price`),
+  getPrice: (symbol, signal) => api.get(`/stocks/${symbol}/price`, signal ? { signal } : undefined),
 
   // 获取策略信号和卖出区间
-  getSignals: (symbol, params = {}) => api.get(`/stocks/${symbol}/signals`, { params }),
+  getSignals: (symbol, params = {}, signal) => api.get(`/stocks/${symbol}/signals`, {
+    params,
+    signal: signal || undefined,
+  }),
 };
 
 // ============ Orders API ============
 
 export const ordersAPI = {
   // 获取订单/成交
-  list: () => api.get('/orders'),
+  list: (signal) => api.get('/orders', signal ? { signal } : undefined),
 
   // 提交订单
-  submit: (data) => api.post('/orders', data),
+  submit: (data, signal) => api.post('/orders', data, signal ? { signal } : undefined),
 
   // 撤销订单
-  cancel: (orderId) => api.delete(`/orders/${orderId}`),
+  cancel: (orderId, signal) => api.delete(`/orders/${orderId}`, signal ? { signal } : undefined),
 
   // 获取交易历史
-  getHistory: (params = {}) => api.get('/orders/history', { params }),
+  getHistory: (params = {}, signal) => api.get('/orders/history', {
+    params,
+    signal: signal || undefined,
+  }),
 };
 
 // ============ Annotations API ============
 
 export const annotationsAPI = {
   // 获取标注
-  getMarkers: (symbol) => api.get(`/annotations/${symbol}/markers`),
+  getMarkers: (symbol, signal) => api.get(`/annotations/${symbol}/markers`, signal ? { signal } : undefined),
 
   // 添加标注
-  addMarker: (symbol, data) => api.post(`/annotations/${symbol}/markers`, data),
+  addMarker: (symbol, data, signal) => api.post(`/annotations/${symbol}/markers`, data, signal ? { signal } : undefined),
 
   // 更新标注
-  updateMarker: (symbol, markerId, data) => api.put(`/annotations/${symbol}/markers/${markerId}`, data),
+  updateMarker: (symbol, markerId, data, signal) => api.put(`/annotations/${symbol}/markers/${markerId}`, data, signal ? { signal } : undefined),
 
   // 删除标注
-  deleteMarker: (symbol, markerId) => api.delete(`/annotations/${symbol}/markers/${markerId}`),
+  deleteMarker: (symbol, markerId, signal) => api.delete(`/annotations/${symbol}/markers/${markerId}`, signal ? { signal } : undefined),
 
   // 获取卖出区间
-  getRanges: (symbol) => api.get(`/annotations/${symbol}/ranges`),
+  getRanges: (symbol, signal) => api.get(`/annotations/${symbol}/ranges`, signal ? { signal } : undefined),
 
   // 添加卖出区间
-  addRange: (symbol, data) => api.post(`/annotations/${symbol}/ranges`, data),
+  addRange: (symbol, data, signal) => api.post(`/annotations/${symbol}/ranges`, data, signal ? { signal } : undefined),
 
   // 更新卖出区间
-  updateRange: (symbol, rangeId, data) => api.put(`/annotations/${symbol}/ranges/${rangeId}`, data),
+  updateRange: (symbol, rangeId, data, signal) => api.put(`/annotations/${symbol}/ranges/${rangeId}`, data, signal ? { signal } : undefined),
 
   // 删除卖出区间
-  deleteRange: (symbol, rangeId) => api.delete(`/annotations/${symbol}/ranges/${rangeId}`),
+  deleteRange: (symbol, rangeId, signal) => api.delete(`/annotations/${symbol}/ranges/${rangeId}`, signal ? { signal } : undefined),
 };
 
 // ============ Risk API ============
 
 export const riskAPI = {
   // 获取风控状态
-  getStatus: () => api.get('/risk/status'),
+  getStatus: (signal) => api.get('/risk/status', signal ? { signal } : undefined),
 
   // 获取持仓
-  getPositions: () => api.get('/risk/positions'),
+  getPositions: (signal) => api.get('/risk/positions', signal ? { signal } : undefined),
 
   // 获取绩效
-  getPerformance: () => api.get('/risk/performance'),
+  getPerformance: (signal) => api.get('/risk/performance', signal ? { signal } : undefined),
 
   // 获取交易器状态
-  getTraderStatus: () => api.get('/trader/status'),
+  getTraderStatus: (signal) => api.get('/trader/status', signal ? { signal } : undefined),
 
   // 控制交易器
-  controlTrader: (action, config = {}) => api.post('/trader/control', { action, ...config }),
+  controlTrader: (action, config = {}, signal) => api.post('/trader/control', { action, ...config }, signal ? { signal } : undefined),
 
   // 获取账户汇总
-  getAccountSummary: () => api.get('/account/summary'),
+  getAccountSummary: (signal) => api.get('/account/summary', signal ? { signal } : undefined),
 };
 
 // ============ Health API ============

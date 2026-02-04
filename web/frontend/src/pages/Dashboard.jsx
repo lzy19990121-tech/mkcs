@@ -30,6 +30,37 @@ function Dashboard() {
   // 策略信号状态
   const [strategySignals, setStrategySignals] = useState({});
 
+  // 辅助函数：获取所有信号
+  const getAllSignals = () => {
+    const signals = [];
+
+    for (const [symbol, signalList] of Object.entries(strategySignals)) {
+      if (Array.isArray(signalList)) {
+        signalList.forEach(signal => {
+          signals.push({
+            ...signal,
+            symbol: symbol,
+            timestamp: signal.timestamp || new Date().toISOString()
+          });
+        });
+      } else if (signalList && typeof signalList === 'object') {
+        signals.push({
+          ...signalList,
+          symbol: symbol,
+          timestamp: signalList.timestamp || new Date().toISOString()
+        });
+      }
+    }
+
+    signals.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA;
+    });
+
+    return signals.slice(0,20);
+  };
+
   // 获取数据
   useWatchlist();
   usePerformance();
@@ -50,7 +81,9 @@ function Dashboard() {
             signals[symbol] = data[0]; // 取最新信号
           }
         } catch (error) {
-          console.error(`Failed to fetch signals for ${symbol}:`, error);
+          if (!error.canceled) {
+            console.error(`Failed to fetch signals for ${symbol}:`, error);
+          }
         }
       }
       setStrategySignals(signals);
@@ -424,7 +457,7 @@ function Dashboard() {
         </Col>
 
         {/* 交易历史 */}
-        <Col xs={24}>
+        <Col xs={24} lg={12}>
           <Card title="最近成交">
             <Table
               columns={[
@@ -439,6 +472,34 @@ function Dashboard() {
               pagination={false}
               size="small"
               rowKey="id"
+            />
+          </Card>
+        </Col>
+
+        {/* 信号总值_注册_run_inv_point_checksum_recorder */}
+        <Col xs={24} lg={12}>
+          <Card title={
+            <Space>
+              <span>📊 信号记录</span>
+              <Tag color="blue">历史</Tag>
+            </Space>
+          }>
+            <Table
+              columns={[
+                { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 130, render: (t) => { if (!t) return '-'; const d = new Date(t); return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } },
+                { title: '股票', dataIndex: 'symbol', key: 'symbol', width: 80, render: (s) => <Text strong>{s}</Text> },
+                { title: '方向', dataIndex: 'action', key: 'action', width: 70, render: (a) => <Tag color={a === 'BUY' ? 'green' : 'red'} style={{ fontWeight: 'bold' }}>{a === 'BUY' ? '买入' : '卖出'}</Tag> },
+                { title: '价格', dataIndex: 'price', key: 'price', width: 80, align: 'right', render: (p) => `$${p?.toFixed(2)}` },
+                { title: '目标价', dataIndex: 'target_price', key: 'target_price', width: 80, align: 'right', render: (p) => p ? `$${p.toFixed(2)}` : '-' },
+                { title: '止损', dataIndex: 'stop_loss', key: 'stop_loss', width: 80, align: 'right', render: (p) => p ? `$${p.toFixed(2)}` : '-' },
+                { title: '置信度', dataIndex: 'confidence', key: 'confidence', width: 70, align: 'center', render: (c) => <Tag color={c >= 0.7 ? 'green' : c >= 0.5 ? 'orange' : 'blue'}>{(c * 100).toFixed(0)}%</Tag> },
+                { title: '原因', dataIndex: 'reason', key: 'reason', ellipsis: true, render: (r) => <Tooltip title={r}><Text style={{ fontSize: 11 }}>{r}</Text></Tooltip> },
+              ]}
+              dataSource={getAllSignals()}
+              pagination={false}
+              size="small"
+              rowKey={(record) => `${record.symbol}-${record.timestamp}`}
+              scroll={{ y: 240 }}
             />
           </Card>
         </Col>

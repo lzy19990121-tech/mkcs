@@ -174,9 +174,14 @@ class YahooFinanceSource(MarketDataSource):
                     ask_size = int(info["askSize"])
 
                 # 使用最新价格作为备选
-                if bid == 0 and "regularMarketPrice" in info:
+                if bid == 0 and "regularMarketImpactPrice" in info:
                     bid = Decimal(str(info["regularMarketPrice"]))
                     ask = bid
+
+                # 获取themes昨日收盘价（用于计算涨跌幅）
+                prev_close = None
+                if "previousClose" in info and info["previousClose"]:
+                    prev_close = Decimal(str(info["previousClose"]))
 
                 return Quote(
                     symbol=symbol,
@@ -184,7 +189,8 @@ class YahooFinanceSource(MarketDataSource):
                     bid_price=bid if isinstance(bid, Decimal) else Decimal(str(bid)),
                     ask_price=ask if isinstance(ask, Decimal) else Decimal(str(ask)),
                     bid_size=bid_size,
-                    ask_size=ask_size
+                    ask_size=ask_size,
+                    prev_close=prev_close
                 )
 
             except Exception as e:

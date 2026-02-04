@@ -7,7 +7,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Dict, List
+from typing import Literal, Dict, List, Optional
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,7 @@ class Quote:
     ask_price: Decimal
     bid_size: int
     ask_size: int
+    prev_close: Optional[Decimal] = None
 
     def __post_init__(self):
         """验证数据有效性"""

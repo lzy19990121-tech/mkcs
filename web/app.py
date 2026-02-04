@@ -11,6 +11,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import logging
+import threading
+import time
 
 from flask import Flask, render_template, jsonify, request, send_from_directory
 
@@ -18,11 +20,89 @@ from flask import Flask, render_template, jsonify, request, send_from_directory
 from web.socketio_server import create_socketio
 from web.api import register_api
 from web.db import init_database
+from web.services import market_data_service
 
-# 配置日志
+# 配 日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+
+# 价格推送后台线程
+class PricePusher:
+    """后台价格��送器 - 定期推送 impoverished 价格更新"""
+
+    def __init__(self, interval=5, symbols=None):
+        """
+        Args:
+            interval: 推送间隔（秒）
+            symbols: 要推送的股票列表
+        """
+        self.interval = interval
+        self.symbols = symbols or []
+        self.running = False
+        self.thread = None
+
+    def start(self):
+        """启动后台推送线程"""
+        if self.running:
+            return
+
+        self.running = True
+        self.thread = threading.Thread(target=self._push_loop, daemon=True)
+        self.thread.start()
+        logger.info(f"价格推送线程已启动，间隔: {self.interval}秒")
+
+    def stop(self):
+        """停止后台推送线程"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=2)
+            logger.info("价格推送线程已停止")
+
+    def _push_loop(self):
+        """推送循环"""
+        while self.running:
+            try:
+                if self.symbols:
+                    self._push_prices()
+            except Exception as e:
+                logger.error(f"价格推送失败: {e}")
+
+            time.sleep(self.interval)
+
+    def _push_prices(self):
+        """推送价格更新"""
+        for symbol in self.symbols:
+            try:
+                quote = market_data_service.get_quote(symbol)
+                if quote:
+                    # 计算涨跌幅
+                    mid_price = quote.get('mid_price')
+                    prev_close = quote.get('prev_close')
+                    change = None
+                    change_pct = None
+
+                    if mid_price and prev_close:
+                        change = mid_price - prev_close
+                        change_pct = (change / prev_close) * 100
+
+                    from web.socketio_server import emit_price_update
+                    emit_price_update(symbol, {
+                        'price': mid_price,
+                        'bid_price': quote.get('bid_price'),
+                        'ask_price': quote.get('ask_price'),
+                        'prev_close': prev_close,
+                        'change': change,
+                        'change_pct': change_pct,
+                        'timestamp': quote.get('timestamp')
+                    })
+            except Exception as e:
+                logger.debug(f"推送 {symbol} 价格失败: {e}")
+
+
+# 全局价格推送器实例
+price_pusher = None
 
 class CustomJSONEncoder(json.JSONEncoder):
     """自定义 JSON 编码器，处理 Decimal 和 datetime"""
@@ -105,11 +185,25 @@ def register_routes(app: Flask):
         return render_template('index.html')
 
     # React 静态文件服务
-    @app.route('/static/react/<path:filename>')
-    def serve_react_static(filename):
-        """服务 React 构建的静态文件"""
+    @app.route('/assets/<path:filename>')
+    def serve_react_assets(filename):
+        """服务 React 构建的静态文件 (assets)"""
         static_path = Path(__file__).parent / 'frontend' / 'dist' / 'assets'
         return send_from_directory(static_path, filename)
+
+    @app.route('/static/react/<path:filename>')
+    def serve_react_static(filename):
+        """服务 React 构建的静态文件（兼容路径）"""
+        static_path = Path(__file__).parent / 'frontend' / 'dist' / 'assets'
+        return send_from_directory(static_path, filename)
+
+    @app.route('/favicon.svg')
+    def favicon():
+        """Favicon 图标"""
+        static_path = Path(__file__).parent / 'static' / 'favicon.svg'
+        if static_path.exists():
+            return send_from_directory(static_path.parent, 'favicon.svg')
+        return '', 204
 
     @app.route('/api/backtests')
     def list_backtests():
@@ -304,7 +398,7 @@ def main():
     else:
         # 生产模式
         if hasattr(app, 'socketio'):
-            app.socketio.run(app, host=args.host, port=args.port)
+            app.socketio.run(app, host=args.host, port=args.port, allow_unsafe_werkzeug=True)
         else:
             app.run(host=args.host, port=args.port)
 

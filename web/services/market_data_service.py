@@ -1,16 +1,23 @@
 """
-市场数据服务 - 封装 YahooFinanceSource
+市场数据服务 - 混合数据源模式
 
-提供 K 线数据、实时报价的获取接口
+支持多种数据源组合:
+- hybrid: Yahoo Finance (K线) + Finnhub (实时报价) - 推荐
+- yahoo: 仅 Yahoo Finance
+- finnhub: 仅 Finnhub (需要付费版才能获取K线)
+- auto: 自动选择 (优先 hybrid)
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 from typing import List as TypingList
 
 from skills.market_data.yahoo_source import YahooFinanceSource
+from skills.market_data.finnhub_source import FinnhubSource
+from skills.market_data.hybrid_source import HybridDataSource, SmartDataSource
 from core.models import Bar, Quote
 
 logger = logging.getLogger(__name__)
@@ -20,11 +27,63 @@ class MarketDataService:
     """
     市场数据服务
 
-    封装 YahooFinanceSource，提供简化的 API
+    支持混合数据源模式，获得最佳数据质量
     """
 
-    def __init__(self):
-        self._data_source = YahooFinanceSource()
+    def __init__(self, data_source: Optional[str] = None):
+        """
+        初始化市场数据服务
+
+        Args:
+            data_source: 数据源选择 ('hybrid', 'yahoo', 'finnhub', 'auto')
+                        默认从环境变量 DATA_SOURCE 读取
+        """
+        self._source_name = data_source or os.getenv("DATA_SOURCE", "auto")
+        self._data_source = self._init_data_source()
+
+        # 记录数据源配置
+        self._log_data_source_config()
+
+    def _init_data_source(self) -> object:
+        """初始化数据源"""
+        source_name = self._source_name.lower()
+        api_key = os.getenv("FINNHUB_API_KEY")
+
+        # 自动选择或 hybrid
+        if source_name in ["auto", "hybrid"]:
+            if api_key:
+                logger.info("使用混合数据源: Yahoo Finance (K线) + Finnhub (实时报价)")
+                return HybridDataSource(finnhub_api_key=api_key)
+            else:
+                logger.info("使用 Yahoo Finance 数据源 (未设置 FINNHUB_API_KEY)")
+                return YahooFinanceSource()
+
+        # 显式指定
+        if source_name == "yahoo":
+            logger.info("使用 Yahoo Finance 数据源")
+            return YahooFinanceSource()
+        elif source_name == "smart":
+            logger.info("使用智能数据源")
+            return SmartDataSource(finnhub_api_key=api_key)
+        elif source_name == "finnhub":
+            if not api_key:
+                logger.warning("未设置 FINNHUB_API_KEY，回退到 Yahoo Finance")
+                return YahooFinanceSource()
+            logger.info("使用 Finnhub 数据源")
+            return FinnhubSource()
+        else:
+            logger.warning(f"未知的数据源 '{source_name}'，使用 Yahoo Finance")
+            return YahooFinanceSource()
+
+    def _log_data_source_config(self):
+        """记录数据源配置"""
+        info = self.get_source_info()
+        logger.info(f"数据源配置: {info}")
+
+    @property
+    def source_name(self) -> str:
+        """获取当前使用的数据源名称"""
+        return self._data_source.__class__.__name__
 
     def get_bars(
         self,
@@ -180,6 +239,25 @@ class MarketDataService:
         if quote:
             return quote.get('mid_price') or quote.get('last_price')
         return None
+
+    def get_source_info(self) -> Dict[str, Any]:
+        """
+        获取当前数据源信息
+
+        Returns:
+            数据源信息字典
+        """
+        info = {
+            'source_type': self._source_name,
+            'source_class': self._data_source.__class__.__name__,
+            'finnhub_configured': bool(os.getenv("FINNHUB_API_KEY")),
+        }
+
+        # 如果是混合数据源，获取更详细的信息
+        if hasattr(self._data_source, 'get_source_info'):
+            info.update(self._data_source.get_source_info())
+
+        return info
 
 
 # 单例实例

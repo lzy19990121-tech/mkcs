@@ -9,6 +9,7 @@
 """
 
 import logging
+import threading
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Dict, Any, List, Callable
@@ -39,6 +40,7 @@ class LiveTradingService:
         'fill': [],
         'error': [],
     }
+    _trader_thread: Optional[threading.Thread] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -134,12 +136,27 @@ class LiveTradingService:
             logger.info(f"Registered callback for {event_type}")
 
     def start(self):
-        """启动实时交易"""
-        if self._trader:
-            self._trader.start()
-            logger.info("LiveTrader 已启动")
-        else:
+        """启动实时交易（在后台线程中运行）"""
+        if self._trader is None:
             logger.error("LiveTrader 未初始化，无法启动")
+            return
+
+        if self._trader._running:
+            logger.warning("LiveTrader 已在运行中")
+            return
+
+        if self._trader_thread and self._trader_thread.is_alive():
+            logger.warning("LiveTrader 线程已在运行中")
+            return
+
+        # 在后台线程中启动
+        self._trader_thread = threading.Thread(
+            target=self._trader.start,
+            name="LiveTrader",
+            daemon=True
+        )
+        self._trader_thread.start()
+        logger.info("LiveTrader 已在后台线程中启动")
 
     def pause(self):
         """暂停实时交易"""
@@ -161,7 +178,7 @@ class LiveTradingService:
 
     def is_running(self) -> bool:
         """检查是否正在运行"""
-        return self._trader is not None and self._trader.is_running()
+        return self._trader is not None and self._trader._running
 
     def get_status(self) -> Dict[str, Any]:
         """获取运行状态"""
@@ -173,9 +190,9 @@ class LiveTradingService:
             }
 
         return {
-            'running': self._trader.is_running(),
+            'running': self._trader._running,
             'initialized': True,
-            'paused': self._trader.is_paused(),
+            'paused': self._trader._paused,
             'config': {
                 'symbols': self._trader.config.symbols,
                 'mode': self._trader.config.mode.value,

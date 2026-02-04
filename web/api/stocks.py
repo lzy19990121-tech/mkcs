@@ -12,6 +12,16 @@ from web.services import market_data_service, annotation_service
 stocks_bp = Blueprint('stocks', __name__, url_prefix='/api/stocks')
 
 
+@stocks_bp.route('/data-source', methods=['GET'])
+def get_data_source():
+    """获取当前数据源信息"""
+    try:
+        info = market_data_service.get_source_info()
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @stocks_bp.route('', methods=['GET'])
 def list_stocks():
     """获取观察列表"""
@@ -177,6 +187,53 @@ def get_signals(symbol: str):
         # 使用策略生成信号
         strategy = MAStrategy(fast_period=5, slow_period=20)
         signals = strategy.generate_signals(bars)
+
+
+        # 如果没有真实信号，返回趋势分析信息
+        if not signals:
+            # 计算当前趋势状态
+            fast_mas = strategy._calculate_sma(bars, 5)
+            slow_mas = strategy._calculate_sma(bars, 20)
+            curr_fast = fast_mas[-1]
+            curr_slow = slow_mas[-1]
+            curr_price = bars[-1].close
+
+            # 判断趋势
+            if curr_fast and curr_slow:
+                diff_pct = float((curr_fast - curr_slow) / curr_slow * 100)
+                if abs(diff_pct) < 0.1:
+                    trend = "横盘震荡"
+                    advice = "观望，等待明确信号"
+                elif curr_fast > curr_slow:
+                    trend = "上升趋势"
+                    advice = "可考虑逢低买入"
+                else:
+                    trend = "下降趋势"
+                    advice = "建议减仓或观望"
+            else:
+                trend = "数据不足"
+                advice = "需要更多数据"
+
+            # 返回无信号信息
+            return jsonify([{
+                'symbol': symbol.upper(),
+                'action': 'HOLD',
+                'price': float(curr_price),
+                'target_price': None,
+                'stop_loss': None,
+                'confidence': 0.0,
+                'reason': f'无信号 | 当前{trend} (快慢差距{diff_pct:+.2f}%) | {advice}',
+                'timestamp': datetime.now().isoformat(),
+                'time_horizon': None,
+                'sell_ranges': [],
+                'no_signal_info': {
+                    'trend': trend,
+                    'advice': advice,
+                    'fast_ma': float(curr_fast) if curr_fast else None,
+                    'slow_ma': float(curr_slow) if curr_slow else None,
+                    'current_price': float(curr_price)
+                }
+            }])
 
         # 转换信号为 JSON
         result = []

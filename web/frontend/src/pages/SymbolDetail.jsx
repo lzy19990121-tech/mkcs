@@ -17,6 +17,7 @@ function SymbolDetail() {
   const { symbol } = useParams();
   const navigate = useNavigate();
   const [interval, setIntervalValue] = useState('1d');
+  const [chartInterval, setChartInterval] = useState('1d'); // 图表实际使用的周期
 
   // 状态管理
   const positions = useMarketStore((state) => state.positions);
@@ -31,21 +32,31 @@ function SymbolDetail() {
   usePerformance();
 
   // 获取 K 线数据
-  const { bars, maData, loading, refetch: refetchBars } = useBars(symbol, interval, 90);
+  const { bars, maData, loading, refetch: refetchBars } = useBars(symbol, chartInterval, 90);
 
   // 获取卖出区间
   useEffect(() => {
+    let cancelled = false;
+
     const fetchSellRanges = async () => {
       try {
         console.log('Fetching sell ranges for:', symbol);
         const data = await annotationsAPI.getRanges(symbol);
         console.log('Sell ranges data:', data);
-        setSellRanges(data);
+        if (!cancelled) {
+          setSellRanges(data);
+        }
       } catch (error) {
-        console.error('Failed to fetch sell ranges:', error);
+        if (!cancelled && !error.cancelled) {
+          console.error('Failed to fetch sell ranges:', error);
+        }
       }
     };
     fetchSellRanges();
+
+    return () => {
+      cancelled = true;
+    };
   }, [symbol]);
 
   // WebSocket 订阅
@@ -68,50 +79,70 @@ function SymbolDetail() {
 
   // 获取策略信号和卖出区间
   useEffect(() => {
+    let cancelled = false;
+
     const fetchSignals = async () => {
       try {
         console.log('Fetching strategy signals for:', symbol);
-        const signals = await stocksAPI.getSignals(symbol, { interval, days: 90 });
+        const signals = await stocksAPI.getSignals(symbol, { interval: chartInterval, days: 90 });
         console.log('Strategy signals:', signals);
 
-        setStrategySignals(signals);
+        if (!cancelled) {
+          setStrategySignals(signals);
 
-        // 提取策略生成的卖出区间
-        const strategySellRanges = [];
-        signals.forEach(signal => {
-          if (signal.sell_ranges && signal.sell_ranges.length > 0) {
-            strategySellRanges.push(...signal.sell_ranges);
-          }
-        });
+          // 提取策略生成的卖出区间
+          const strategySellRanges = [];
+          signals.forEach(signal => {
+            if (signal.sell_ranges && signal.sell_ranges.length > 0) {
+              strategySellRanges.push(...signal.sell_ranges);
+            }
+          });
 
-        // 合并手动添加的卖出区间和策略生成的卖出区间
-        setSellRanges(prevRanges => {
-          // 移除之前的策略信号，保留手动添加的
-          const manualRanges = prevRanges.filter(r => !r.is_strategy_signal);
-          return [...manualRanges, ...strategySellRanges];
-        });
+          // 合并手动添加的卖出区间和策略生成的卖出 卖出区间
+          setSellRanges(prevRanges => {
+            // 移除之前的策略信号，保留手动添加的
+            const manualRanges = prevRanges.filter(r => !r.is_strategy_signal);
+            return [...manualRanges, ...strategySellRanges];
+          });
+        }
       } catch (error) {
-        console.error('Failed to fetch strategy signals:', error);
+        if (!cancelled && !error.cancelled) {
+          console.error('Failed to fetch strategy signals:', error);
+        }
       }
     };
     fetchSignals();
-  }, [symbol, interval]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, chartInterval]);
 
   // 获取手动添加的卖出区间
   useEffect(() => {
+    let cancelled = false;
+
     const fetchManualRanges = async () => {
       try {
         const data = await annotationsAPI.getRanges(symbol);
-        // 只添加手动标注的区间
-        setSellRanges(prevRanges => {
-          const strategyRanges = prevRanges.filter(r => r.is_strategy_signal);
-          return [...strategyRanges, ...data];
-        });
+        if (!cancelled) {
+          // 只添加手动标注的区间
+          setSellRanges(prevRanges => {
+            const strategyRanges = prevRanges.filter(r => r.is_strategy_signal);
+            return [...strategyRanges, ...data];
+          });
+        }
       } catch (error) {
-        console.error('Failed to fetch manual sell ranges:', error);
+        if (!cancelled && !error.cancelled) {
+          console.error('Failed to fetch manual sell ranges:', error);
+        }
       }
     };
     fetchManualRanges();
+
+    return () => {
+      cancelled = true;
+    };
   }, [symbol]);
 
   // 处理添加标注
@@ -192,6 +223,12 @@ function SymbolDetail() {
     useOrders(); // 刷新数据
   };
 
+  // 处理图表时间周期变化
+  const handleChartIntervalChange = (newInterval) => {
+    setChartInterval(newInterval);
+    setIntervalValue(newInterval); // 同步到父组件状态
+  };
+
   return (
     <div>
       {/* 顶部导航 */}
@@ -221,9 +258,9 @@ function SymbolDetail() {
               markers={[]}
               sellRanges={sellRanges}
               loading={loading}
-              interval={interval}
+              interval={chartInterval}
               onAddMarker={handleAddMarker}
-              onIntervalChange={setIntervalValue}
+              onIntervalChange={handleChartIntervalChange}
             />
           </Card>
         </Col>
