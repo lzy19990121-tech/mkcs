@@ -131,4 +131,23 @@ export const healthAPI = {
   check: () => api.get('/health'),
 };
 
+// ============ Backtests API ============
+
+export const backtestsAPI = {
+  // 获取所有回测列表
+  list: (signal) => api.get('/backtests', signal ? { signal } : undefined),
+
+  // 获取单个回测详情
+  get: (id, signal) => api.get(`/backtest/${id}`, signal ? { signal } : undefined),
+
+  // 获取回测性能指标
+  getMetrics: (id, signal) => api.get(`/backtest/${id}/metrics`, signal ? { signal } : undefined),
+
+  // 获取回测文件清单
+  listArtifacts: (id, signal) => api.get(`/backtest/${id}/artifacts`, signal ? { signal } : undefined),
+
+  // 获取文件内容
+  getArtifact: (id, filepath, signal) => api.get(`/backtest/${id}/artifact/${filepath}`, signal ? { signal } : undefined),
+};
+
 export default api;

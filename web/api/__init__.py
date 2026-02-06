@@ -8,6 +8,7 @@ from web.api.stocks import stocks_bp
 from web.api.orders import orders_bp
 from web.api.annotations import annotations_bp
 from web.api.risk import risk_bp
+from web.api.backtests import backtests_bp
 
 
 def register_api(app):
@@ -16,6 +17,7 @@ def register_api(app):
     app.register_blueprint(orders_bp)
     app.register_blueprint(annotations_bp)
     app.register_blueprint(risk_bp)
+    app.register_blueprint(backtests_bp)
 
 
 __all__ = [
@@ -23,5 +25,6 @@ __all__ = [
     'orders_bp',
     'annotations_bp',
     'risk_bp',
+    'backtests_bp',
     'register_api',
 ]

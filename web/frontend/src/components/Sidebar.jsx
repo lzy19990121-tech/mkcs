@@ -1,7 +1,14 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HomeOutlined, LineChartOutlined, SettingOutlined } from '@ant-design/icons';
+import {
+  HomeOutlined,
+  LineChartOutlined,
+  ExperimentOutlined,
+  DiffOutlined,
+  SafetyOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
 
 const { Sider } = Layout;
 
@@ -19,6 +26,26 @@ function Sidebar() {
       key: '/dashboard',
       icon: <LineChartOutlined />,
       label: '交易面板',
+    },
+    {
+      key: '/runs',
+      icon: <ExperimentOutlined />,
+      label: '回测研究',
+    },
+    {
+      key: '/compare',
+      icon: <DiffOutlined />,
+      label: '策略对比',
+    },
+    {
+      key: '/risk',
+      icon: <SafetyOutlined />,
+      label: '风控中心',
+    },
+    {
+      key: '/rules',
+      icon: <SettingOutlined />,
+      label: '规则管理',
     },
   ];
 
