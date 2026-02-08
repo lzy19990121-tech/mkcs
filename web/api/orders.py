@@ -75,18 +75,84 @@ def submit_order():
         return jsonify({'error': str(e)}), 500
 
 
-@orders_bp.route('/<int:order_id>', methods=['DELETE'])
-def cancel_order(order_id: int):
-    """撤销订单（目前仅支持取消挂单）"""
+@orders_bp.route('/cancel', methods=['POST'])
+def cancel_order_endpoint():
+    """
+    撤销订单
+
+    Body:
+        {
+            "order_id": "123",           // 可选，订单 ID
+            "client_order_id": "abc",    // 可选，客户端订单 ID
+            "symbol": "AAPL",            // 可选，撤销该品种的所有订单
+            "dry_run": false              // 可选，模拟运行（live 模式默认 true）
+        }
+
+    Returns:
+        {
+            "status": "success" | "error",
+            "reason": "...",
+            "cancelled_orders": [...],
+            "updated_order": {...}
+        }
+    """
     try:
-        # TODO: 实现撤销订单功能
-        return jsonify({
-            'status': 'error',
-            'message': '撤销订单功能暂未实现'
-        }), 501
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        order_id = data.get('order_id')
+        client_order_id = data.get('client_order_id')
+        symbol = data.get('symbol')
+        dry_run = data.get('dry_run', None)
+
+        # 至少需要一个标识
+        if not any([order_id, client_order_id, symbol]):
+            return jsonify({
+                'status': 'error',
+                'reason': '至少需要提供 order_id、client_order_id 或 symbol 之一'
+            }), 400
+
+        result = live_trading_service.cancel_order(
+            order_id=order_id,
+            client_order_id=client_order_id,
+            symbol=symbol,
+            dry_run=dry_run
+        )
+
+        return jsonify(result)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'status': 'error',
+            'reason': str(e)
+        }), 500
+
+
+@orders_bp.route('/<int:order_id>', methods=['DELETE'])
+def cancel_order_by_id(order_id: int):
+    """
+    撤销订单（通过 order_id）
+
+    Query params:
+        dry_run: 是否模拟运行（live 模式默认 true）
+    """
+    try:
+        dry_run = request.args.get('dry_run', '').lower() == 'true'
+
+        result = live_trading_service.cancel_order(
+            order_id=str(order_id),
+            dry_run=dry_run
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'reason': str(e)
+        }), 500
 
 
 @orders_bp.route('/history', methods=['GET'])

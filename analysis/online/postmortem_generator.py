@@ -22,7 +22,7 @@ os.chdir(project_root)
 
 from analysis.online.risk_signal_schema import RiskSignal, GatingEvent, AllocatorEvent
 from analysis.online.risk_state_machine import RiskState, StateTransitionEvent
-from analysis.replay_schema import ReplayOutput
+from analysis.replay_schema import ReplayOutput, load_replay_outputs
 
 
 class PostMortemTriggerType(Enum):
@@ -416,26 +416,62 @@ class PostMortemGenerator:
 
     def _find_replay_pointers(
         self,
-        trigger_time: datetime
+        trigger_time: datetime,
+        trade_id: Optional[str] = None,
+        symbol: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """查找对应的 replay 片段指针
 
         Args:
             trigger_time: 触发时间
+            trade_id: 交易 ID（可选）
+            symbol: 交易品种（可选）
 
         Returns:
             Replay 指针列表
         """
-        # TODO: 实现 replay 数据查找
-        # 这里简化为占位符
-        return [
-            {
-                "replay_id": "unknown",
-                "segment_start": (trigger_time - timedelta(hours=1)).isoformat(),
-                "segment_end": (trigger_time + timedelta(minutes=30)).isoformat(),
-                "data_path": self.replay_data_path or "runs/"
-            }
-        ]
+        try:
+            # 使用 ReplayLocator 查找数据
+            locator = ReplayLocator(self.replay_data_path or "runs/")
+
+            # 构建查找条件
+            conditions = {}
+            if trade_id:
+                conditions["trade_id"] = trade_id
+            if symbol:
+                conditions["symbol"] = symbol
+            conditions["timestamp"] = trigger_time
+
+            # 查找对应的 replay 数据
+            pointers = locator.find_replay_data(conditions)
+
+            if pointers:
+                return pointers
+
+            # 如果没有找到，返回默认范围
+            return [
+                {
+                    "replay_id": "unknown",
+                    "segment_start": (trigger_time - timedelta(hours=1)).isoformat(),
+                    "segment_end": (trigger_time + timedelta(minutes=30)).isoformat(),
+                    "data_path": self.replay_data_path or "runs/",
+                    "status": "fallback",
+                    "reason": f"No replay data found for conditions: {conditions}"
+                }
+            ]
+
+        except Exception as e:
+            # 异常时返回降级结果
+            return [
+                {
+                    "replay_id": "error",
+                    "segment_start": (trigger_time - timedelta(hours=1)).isoformat(),
+                    "segment_end": (trigger_time + timedelta(minutes=30)).isoformat(),
+                    "data_path": self.replay_data_path or "runs/",
+                    "status": "error",
+                    "reason": f"Failed to locate replay data: {str(e)}"
+                }
+            ]
 
     def _analyze_root_cause(
         self,
@@ -568,3 +604,290 @@ class PostMortemGenerator:
             with open(md_file, 'w') as f:
                 f.write(report.to_markdown())
             print(f"Post-mortem Markdown saved: {md_file}")
+
+
+class ReplayLocator:
+    """Replay 数据定位器
+
+    根据交易 ID、时间戳、品种等条件查找对应的 replay 数据片段。
+    """
+
+    def __init__(self, runs_dir: str = "runs/"):
+        """初始化定位器
+
+        Args:
+            runs_dir: runs 目录路径
+        """
+        self.runs_dir = Path(runs_dir)
+        self._replay_cache: Dict[str, ReplayOutput] = {}
+
+    def find_replay_data(
+        self,
+        conditions: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """查找 replay 数据
+
+        Args:
+            conditions: 查找条件
+                - trade_id: 交易 ID
+                - timestamp: 时间戳（datetime）
+                - symbol: 交易品种
+                - strategy_id: 策略 ID
+                - run_id: 运行 ID
+
+        Returns:
+            找到的 replay 指针列表
+        """
+        pointers = []
+
+        # 按 trade_id 查找
+        if "trade_id" in conditions:
+            trade_id = conditions["trade_id"]
+            pointers.extend(self._find_by_trade_id(trade_id))
+
+        # 按 timestamp 和 symbol 查找
+        elif "timestamp" in conditions:
+            timestamp = conditions["timestamp"]
+            symbol = conditions.get("symbol")
+            pointers.extend(self._find_by_time(timestamp, symbol))
+
+        # 按 run_id 查找
+        elif "run_id" in conditions:
+            run_id = conditions["run_id"]
+            pointers.extend(self._find_by_run_id(run_id))
+
+        return pointers
+
+    def _find_by_trade_id(self, trade_id: str) -> List[Dict[str, Any]]:
+        """按交易 ID 查找
+
+        Args:
+            trade_id: 交易 ID
+
+        Returns:
+            replay 指针列表
+        """
+        pointers = []
+
+        # 扫描所有 run 目录
+        for replay in self._load_all_replays():
+            # 查找匹配的 trade
+            for trade in replay.trades:
+                if trade.trade_id == trade_id:
+                    pointers.append({
+                        "replay_id": replay.run_id,
+                        "strategy_id": replay.strategy_id,
+                        "strategy_name": replay.strategy_name,
+                        "trade_id": trade.trade_id,
+                        "trade_timestamp": trade.timestamp.isoformat(),
+                        "symbol": trade.symbol,
+                        "side": trade.side,
+                        "price": float(trade.price),
+                        "quantity": trade.quantity,
+                        "segment_start": (trade.timestamp - timedelta(hours=1)).isoformat(),
+                        "segment_end": (trade.timestamp + timedelta(minutes=30)).isoformat(),
+                        "data_path": str(self.runs_dir / replay.run_id),
+                        "signal_id": trade.signal_id,
+                        "status": "found"
+                    })
+
+        return pointers
+
+    def _find_by_time(
+        self,
+        timestamp: datetime,
+        symbol: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """按时间查找
+
+        Args:
+            timestamp: 时间戳
+            symbol: 交易品种（可选）
+
+        Returns:
+            replay 指针列表
+        """
+        pointers = []
+
+        # 扫描所有 run 目录
+        for replay in self._load_all_replays():
+            # 检查时间范围是否覆盖
+            if not (replay.start_date <= timestamp.date() <= replay.end_date):
+                continue
+
+            # 查找该时间附近的 steps
+            nearby_steps = [
+                s for s in replay.steps
+                if abs((s.timestamp - timestamp).total_seconds()) < 3600  # 1小时内
+            ]
+
+            if nearby_steps:
+                # 找到最近的 step
+                nearest = min(nearby_steps, key=lambda s: abs((s.timestamp - timestamp).total_seconds()))
+
+                # 查找该时间的交易
+                relevant_trades = []
+                for trade in replay.trades:
+                    if abs((trade.timestamp - timestamp).total_seconds()) < 3600:
+                        if symbol is None or trade.symbol == symbol:
+                            relevant_trades.append({
+                                "trade_id": trade.trade_id,
+                                "symbol": trade.symbol,
+                                "side": trade.side,
+                                "price": float(trade.price),
+                                "quantity": trade.quantity
+                            })
+
+                pointers.append({
+                    "replay_id": replay.run_id,
+                    "strategy_id": replay.strategy_id,
+                    "strategy_name": replay.strategy_name,
+                    "query_timestamp": timestamp.isoformat(),
+                    "nearest_step_time": nearest.timestamp.isoformat(),
+                    "segment_start": (timestamp - timedelta(hours=1)).isoformat(),
+                    "segment_end": (timestamp + timedelta(minutes=30)).isoformat(),
+                    "data_path": str(self.runs_dir / replay.run_id),
+                    "relevant_trades": relevant_trades,
+                    "status": "found"
+                })
+
+        return pointers
+
+    def _find_by_run_id(self, run_id: str) -> List[Dict[str, Any]]:
+        """按运行 ID 查找
+
+        Args:
+            run_id: 运行 ID
+
+        Returns:
+            replay 指针列表
+        """
+        replay_path = self.runs_dir / run_id
+
+        if not replay_path.exists():
+            return [{
+                "replay_id": run_id,
+                "status": "not_found",
+                "reason": f"Run directory not found: {replay_path}"
+            }]
+
+        try:
+            replay = ReplayOutput.from_directory(replay_path)
+
+            return [{
+                "replay_id": replay.run_id,
+                "strategy_id": replay.strategy_id,
+                "strategy_name": replay.strategy_name,
+                "start_date": replay.start_date.isoformat(),
+                "end_date": replay.end_date.isoformat(),
+                "data_path": str(replay_path),
+                "total_trades": len(replay.trades),
+                "total_steps": len(replay.steps),
+                "status": "found"
+            }]
+
+        except Exception as e:
+            return [{
+                "replay_id": run_id,
+                "status": "error",
+                "reason": f"Failed to load replay: {str(e)}"
+            }]
+
+    def _load_all_replays(self) -> List[ReplayOutput]:
+        """加载所有 replay 数据
+
+        Returns:
+            ReplayOutput 列表
+        """
+        if not self._replay_cache:
+            try:
+                self._replay_cache = {
+                    r.run_id: r for r in load_replay_outputs(str(self.runs_dir))
+                }
+            except Exception as e:
+                print(f"Warning: Failed to load replays: {e}")
+
+        return list(self._replay_cache.values())
+
+    def get_signal_context(
+        self,
+        run_id: str,
+        timestamp: datetime
+    ) -> Dict[str, Any]:
+        """获取信号上下文
+
+        查找指定 run 中指定时间点的信号状态。
+
+        Args:
+            run_id: 运行 ID
+            timestamp: 时间戳
+
+        Returns:
+            信号上下文信息
+        """
+        # 查找 replay
+        pointers = self._find_by_run_id(run_id)
+
+        if not pointers or pointers[0]["status"] != "found":
+            return {
+                "status": "not_found",
+                "reason": f"Replay not found for run_id: {run_id}"
+            }
+
+        replay = self._replay_cache.get(run_id)
+        if not replay:
+            return {
+                "status": "error",
+                "reason": "Replay not in cache"
+            }
+
+        # 查找最近的 step
+        nearest_step = None
+        min_diff = float('inf')
+
+        for step in replay.steps:
+            diff = abs((step.timestamp - timestamp).total_seconds())
+            if diff < min_diff:
+                min_diff = diff
+                nearest_step = step
+
+        if nearest_step is None:
+            return {
+                "status": "not_found",
+                "reason": "No steps found in replay"
+            }
+
+        # 查找相关交易
+        nearby_trades = [
+            t for t in replay.trades
+            if abs((t.timestamp - timestamp).total_seconds()) < 3600
+        ]
+
+        return {
+            "status": "found",
+            "step": {
+                "timestamp": nearest_step.timestamp.isoformat(),
+                "step_pnl": float(nearest_step.step_pnl),
+                "equity": float(nearest_step.equity),
+                "signal_state": nearest_step.signal_state
+            },
+            "nearby_trades": [
+                {
+                    "trade_id": t.trade_id,
+                    "timestamp": t.timestamp.isoformat(),
+                    "symbol": t.symbol,
+                    "side": t.side,
+                    "price": float(t.price),
+                    "quantity": t.quantity
+                }
+                for t in nearby_trades
+            ],
+            "config": {
+                "cost_model": nearest_step.cost_model,
+                "slippage": nearest_step.slippage
+            }
+        }
+
+    def clear_cache(self) -> None:
+        """清除缓存"""
+        self._replay_cache.clear()

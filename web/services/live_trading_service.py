@@ -411,6 +411,80 @@ class LiveTradingService:
             'reason': None,
         }
 
+    def cancel_order(
+        self,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        symbol: Optional[str] = None,
+        dry_run: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        撤销订单
+
+        Args:
+            order_id: 订单 ID
+            client_order_id: 客户端订单 ID
+            symbol: 撤销该品种的所有订单
+            dry_run: 是否模拟运行（live 模式默认 true，paper 模式无效）
+
+        Returns:
+            撤销结果
+        """
+        if self._trader is None:
+            return {
+                'status': 'error',
+                'reason': 'LiveTrader 未初始化'
+            }
+
+        # 检查是否是 live 模式
+        is_live = self._trader.config.mode == TradingMode.LIVE
+        if dry_run is None:
+            dry_run = is_live  # live 模式默认 dry_run=True
+
+        if is_live and dry_run:
+            # live 模式下的模拟运行
+            return {
+                'status': 'success',
+                'reason': 'DRY RUN: Order would be cancelled (live mode)',
+                'dry_run': True,
+                'cancelled_orders': [],
+                'updated_order': None
+            }
+
+        try:
+            # 调用 broker 的 cancel_order
+            result = self._trader.broker.cancel_order(
+                order_id=order_id,
+                client_order_id=client_order_id,
+                symbol=symbol
+            )
+
+            # 添加 dry_run 信息到结果
+            if dry_run:
+                result['dry_run'] = True
+
+            return result
+
+        except Exception as e:
+            logger.error(f"撤销订单失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'status': 'error',
+                'reason': str(e)
+            }
+
+    def get_pending_orders(self) -> List[Dict[str, Any]]:
+        """获取所有挂单
+
+        Returns:
+            挂单列表
+        """
+        if self._trader is None or self._trader.broker is None:
+            return []
+
+        return self._trader.broker.get_pending_orders()
+
 
 # 单例实例
 live_trading_service = LiveTradingService()

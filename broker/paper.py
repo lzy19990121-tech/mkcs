@@ -6,7 +6,7 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Dict, Optional, List, Literal
+from typing import Dict, Optional, List, Literal, Any
 from datetime import datetime
 
 from core.models import OrderIntent, Trade, Position
@@ -272,6 +272,117 @@ class PaperBroker:
             成交记录列表
         """
         return self.trades.copy()
+
+    def cancel_order(
+        self,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        symbol: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """撤销订单
+
+        Args:
+            order_id: 订单 ID
+            client_order_id: 客户端订单 ID
+            symbol: 撤销该品种的所有订单
+
+        Returns:
+            撤销结果
+        """
+        cancelled_orders = []
+
+        if order_id:
+            # 按 order_id 撤销 - 需要遍历所有品种的挂单
+            for sym, orders in self.pending_orders.items():
+                for i, order in enumerate(orders):
+                    if order.order_id == order_id:
+                        # 找到了，移除
+                        self.pending_orders[sym].pop(i)
+                        # 如果该品种没有挂单了，删除key
+                        if not self.pending_orders[sym]:
+                            del self.pending_orders[sym]
+                        return {
+                            "status": "success",
+                            "reason": f"Order {order_id} cancelled",
+                            "cancelled_orders": [order_id],
+                            "updated_order": {
+                                "order_id": order.order_id,
+                                "symbol": order.symbol,
+                                "side": order.side,
+                                "quantity": order.quantity,
+                                "status": "cancelled"
+                            }
+                        }
+            return {
+                "status": "error",
+                "reason": f"Order {order_id} not found or already filled"
+            }
+
+        elif symbol:
+            # 按 symbol 撤销所有订单
+            symbol_upper = symbol.upper()
+            if symbol_upper in self.pending_orders:
+                orders = self.pending_orders.pop(symbol_upper)
+                cancelled_ids = [o.order_id for o in orders]
+                return {
+                    "status": "success",
+                    "reason": f"Cancelled {len(orders)} orders for {symbol_upper}",
+                    "cancelled_orders": cancelled_ids
+                }
+            else:
+                return {
+                    "status": "error",
+                    "reason": f"No pending orders found for {symbol_upper}"
+                }
+
+        elif client_order_id:
+            # 按 client_order_id 撤销
+            for sym, orders in list(self.pending_orders.items()):
+                remaining = []
+                cancelled = []
+                for order in orders:
+                    if getattr(order, 'client_order_id', None) == client_order_id:
+                        cancelled.append(order.order_id)
+                    else:
+                        remaining.append(order)
+                if cancelled:
+                    self.pending_orders[sym] = remaining
+                    if not remaining:
+                        del self.pending_orders[sym]
+                    return {
+                        "status": "success",
+                        "reason": f"Cancelled {len(cancelled)} orders with client_order_id={client_order_id}",
+                        "cancelled_orders": cancelled
+                    }
+            return {
+                "status": "error",
+                "reason": f"No pending orders found with client_order_id={client_order_id}"
+            }
+
+        else:
+            return {
+                "status": "error",
+                "reason": "At least one of order_id, client_order_id, or symbol must be provided"
+            }
+
+    def get_pending_orders(self) -> List[Dict[str, Any]]:
+        """获取所有挂单
+
+        Returns:
+            挂单列表
+        """
+        pending = []
+        for symbol, orders in self.pending_orders.items():
+            for order in orders:
+                pending.append({
+                    "order_id": order.order_id,
+                    "symbol": order.symbol,
+                    "side": order.side,
+                    "quantity": order.quantity,
+                    "submit_ts": order.submit_ts.isoformat(),
+                    "status": "pending"
+                })
+        return pending
 
     def reset(self):
         """重置账户到初始状态"""
