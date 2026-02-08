@@ -94,7 +94,9 @@ class MonitoredLiveTrader:
         # 趋势检测器
         self.trend_detectors = {}
         for symbol in symbols:
-            self.trend_detectors[symbol] = TrendDetector(window_size=20)
+            self.trend_detectors[symbol] = TrendDetector(
+                strategy_id=f"ma_{strategy_config['fast_period']}_{strategy_config['slow_period']}_{symbol}"
+            )
 
         # 告警管理器
         self.alerting_manager = AlertingManager()
