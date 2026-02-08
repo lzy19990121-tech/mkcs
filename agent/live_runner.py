@@ -331,7 +331,7 @@ class LiveTrader:
                             signal=signal,
                             positions=self.broker.get_all_positions(),
                             cash_balance=self.broker.get_cash_balance(),
-                            portfolio_value=self.broker.get_portfolio_value()
+                            portfolio_value=self.broker.get_total_equity()
                         )
 
                         self._log_event(
