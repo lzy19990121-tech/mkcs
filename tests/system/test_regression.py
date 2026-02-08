@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List
+import pytest
 
 from core.models import Bar
 from core.schema import MarketState, AlphaOpinion, MetaDecision, RiskDecision, ExecutionResult
@@ -22,6 +23,12 @@ from skills.visualization.explainability import ExplainabilityEngine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def results():
+    """pytest fixture: 提供 TestResults 对象"""
+    return TestResults()
 
 
 def create_bars(symbol: str, days: int, trend: float = 0.5) -> List[Bar]:
