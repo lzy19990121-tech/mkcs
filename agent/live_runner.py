@@ -547,7 +547,7 @@ class LiveTrader:
             "signal_count_today": self._signal_count_today,
             "daily_stats": self._daily_stats,
             "last_check_time": self._last_check_time.isoformat() if self._last_check_time else None,
-            "portfolio_value": float(self.broker.get_portfolio_value()) if self.broker else 0,
+            "portfolio_value": float(self.broker.get_total_equity()) if self.broker else 0,
             "cash_balance": float(self.broker.get_cash_balance()) if self.broker else 0,
         }
 
