@@ -1,0 +1,82 @@
+name: Optimizer Regression Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'analysis/**'
+      - 'skills/market_analysis/**'
+      - 'agent/**'
+      - 'core/**'
+      - '.github/workflows/optimizer_regression.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'analysis/**'
+      - 'skills/market_analysis/**'
+      - 'agent/**'
+      - 'core/**'
+      - '.github/workflows/optimizer_regression.yml'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  optimizer_regression:
+    runs-on: ubuntu-latest
+    name: Optimizer Regression Tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Full history for commit hash
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy scipy
+
+    - name: Run SPL-6b Optimizer Gate Tests
+      run: |
+        python tests/test_spl6b_optimizer_gate.py
+      continue-on-error: false  # FAIL will block the PR
+
+    - name: Run Weight Smoothing Penalty Tests
+      run: |
+        python tests/test_smooth_penalty.py
+      continue-on-error: false
+
+    - name: Upload optimizer test report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: optimizer-regression-report
+        path: |
+          reports/spl6b_optimizer_manifest.json
+          outputs/pipeline/
+        retention-days: 30
+
+    - name: Check Optimizer Gate Result
+      if: always()
+      run: |
+        if [ -f reports/spl6b_optimizer_manifest.json ]; then
+          if grep -q '"block_release": true' reports/spl6b_optimizer_manifest.json; then
+            echo "❌ Optimizer Gate FAILED - Release is blocked"
+            exit 1
+          else
+            echo "✅ Optimizer Gate PASSED"
+          fi
+        fi
+
+    - name: Generate summary
+      if: always()
+      run: |
+        echo "## Optimizer Regression Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY

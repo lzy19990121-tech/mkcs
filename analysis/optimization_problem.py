@@ -88,6 +88,11 @@ class OptimizationResult:
     expected_risk: float = 0.0
     marginal_contributions: np.ndarray = None
 
+    # 平滑惩罚审计
+    smooth_penalty_value: float = 0.0
+    smooth_penalty_lambda: float = 0.0
+    smooth_penalty_mode: str = "l2"
+
     # 元信息
     solver_used: str = ""
     fallback_triggered: bool = False
@@ -108,6 +113,9 @@ class OptimizationResult:
             "expected_return": float(self.expected_return),
             "expected_risk": float(self.expected_risk),
             "marginal_contributions": self.marginal_contributions.tolist() if self.marginal_contributions is not None else None,
+            "smooth_penalty_value": float(self.smooth_penalty_value),
+            "smooth_penalty_lambda": float(self.smooth_penalty_lambda),
+            "smooth_penalty_mode": self.smooth_penalty_mode,
             "solver_used": self.solver_used,
             "fallback_triggered": self.fallback_triggered,
             "error_message": self.error_message

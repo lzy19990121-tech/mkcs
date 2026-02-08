@@ -34,7 +34,8 @@ from analysis.portfolio_optimizer_v2 import (
     FallbackAllocator
 )
 from analysis.adaptive_gating import AdaptiveRiskGate, GatingDecision, GatingAction
-from analysis.portfolio.budget_allocator import RulesBasedAllocator, AllocationResult
+from analysis.portfolio.budget_allocator import RuleBasedAllocator, AllocationResult
+from analysis.portfolio.risk_budget import PortfolioRiskBudget, create_conservative_budget
 from analysis.replay_schema import load_replay_outputs, ReplayOutput
 
 
@@ -56,10 +57,14 @@ class PipelineConfig:
     enable_cost_adjustment: bool = True
     transaction_cost: float = 0.001  # 0.1% 交易成本
 
-    # 权重平滑
+    # 权重平滑（后处理）
     enable_smoothing: bool = True
     max_weight_change: float = 0.2  # 单次最大变化 20%
     smoothing_factor: float = 0.5  # 指数平滑因子 (0-1)
+
+    # 权重平滑惩罚（目标函数内）
+    smooth_penalty_lambda: float = 0.0  # 平滑惩罚系数，0=关闭
+    smooth_penalty_mode: str = "l2"  # "l1" 或 "l2"
 
     # 输出配置
     output_dir: str = "outputs/pipeline"
@@ -83,6 +88,13 @@ class PipelineResult:
     binding_constraints: List[str] = field(default_factory=list)
     weight_changes: Dict[str, float] = field(default_factory=dict)
 
+    # 平滑惩罚审计字段
+    raw_weights: Dict[str, float] = field(default_factory=dict)  # 优化器原始输出权重
+    smoothed_weights: Dict[str, float] = field(default_factory=dict)  # 应用平滑后的权重
+    smooth_penalty_value: float = 0.0  # 目标函数中的平滑惩罚值
+    smooth_penalty_lambda: float = 0.0  # 使用的 lambda 值
+    smooth_penalty_mode: str = "l2"  # 使用的模式 (l1/l2)
+
     # 指纹信息
     data_fingerprint: str = ""
     config_fingerprint: str = ""
@@ -104,6 +116,11 @@ class PipelineResult:
             "ineligible_strategies": self.ineligible_strategies,
             "binding_constraints": self.binding_constraints,
             "weight_changes": self.weight_changes,
+            "raw_weights": self.raw_weights,
+            "smoothed_weights": self.smoothed_weights,
+            "smooth_penalty_value": self.smooth_penalty_value,
+            "smooth_penalty_lambda": self.smooth_penalty_lambda,
+            "smooth_penalty_mode": self.smooth_penalty_mode,
             "data_fingerprint": self.data_fingerprint,
             "config_fingerprint": self.config_fingerprint,
             "commit_hash": self.commit_hash,
@@ -134,7 +151,7 @@ class PipelineOptimizerV2:
         # 初始化组件
         self.gates: Dict[str, AdaptiveRiskGate] = {}
         self.optimizer: Optional[PortfolioOptimizerV2] = None
-        self.rules_allocator: Optional[RulesBasedAllocator] = None
+        self.rules_allocator: Optional[RuleBasedAllocator] = None
         self.risk_calculator = RiskProxyCalculator()
 
         # 上次权重（用于平滑）
@@ -166,7 +183,9 @@ class PipelineOptimizerV2:
 
         # Step 3: 初始化 rules allocator (fallback)
         if self.config.enable_fallback:
-            self.rules_allocator = RulesBasedAllocator()
+            # 创建默认预算
+            default_budget = create_conservative_budget()
+            self.rules_allocator = RuleBasedAllocator(budget=default_budget)
 
     def _compute_fingerprint(self, data: Any) -> str:
         """计算数据指纹"""
@@ -264,7 +283,7 @@ class PipelineOptimizerV2:
         self,
         eligible_strategies: List[str],
         risk_proxies: Dict[str, Any]
-    ) -> OptimizationResult:
+    ) -> Tuple[OptimizationResult, Dict[str, float]]:
         """Step 2: 对 eligible 策略调用 optimizer v2
 
         Args:
@@ -272,7 +291,7 @@ class PipelineOptimizerV2:
             risk_proxies: 风险代理参数
 
         Returns:
-            OptimizationResult
+            (OptimizationResult, penalty_audit_dict)
         """
         print("\n" + "="*60)
         print("Step 2: Optimizer v2 分配")
@@ -280,7 +299,7 @@ class PipelineOptimizerV2:
 
         if not eligible_strategies:
             print("  没有 eligible 策略，返回空结果")
-            return OptimizationResult(
+            result = OptimizationResult(
                 success=False,
                 weights=np.array([]),
                 objective_value=0.0,
@@ -288,6 +307,7 @@ class PipelineOptimizerV2:
                 status="no_eligible_strategies",
                 error_message="No eligible strategies after gating"
             )
+            return result, {}
 
         # 如果 optimizer 未初始化，使用 fallback
         if self.optimizer is None:
@@ -300,12 +320,33 @@ class PipelineOptimizerV2:
                 status="optimizer_not_initialized",
                 fallback_triggered=True
             )
-            return result
+            return result, {}
 
-        # 运行优化
-        result = self.optimizer.run_optimization(risk_proxies)
+        # 准备上一次权重（用于平滑惩罚）
+        previous_weights = np.array([
+            self.previous_weights.get(sid, 0.0) for sid in eligible_strategies
+        ])
 
-        return result
+        # 运行优化（传入平滑惩罚参数）
+        smooth_config = {
+            "lambda": self.config.smooth_penalty_lambda,
+            "mode": self.config.smooth_penalty_mode,
+            "previous_weights": previous_weights
+        }
+
+        result = self.optimizer.run_optimization(
+            risk_proxies,
+            smooth_penalty_config=smooth_config
+        )
+
+        # 提取审计信息
+        penalty_audit = {
+            "smooth_penalty_value": getattr(result, "smooth_penalty_value", 0.0),
+            "smooth_penalty_lambda": self.config.smooth_penalty_lambda,
+            "smooth_penalty_mode": self.config.smooth_penalty_mode
+        }
+
+        return result, penalty_audit
 
     def step_3_normalize_and_smooth(
         self,
@@ -459,6 +500,7 @@ class PipelineOptimizerV2:
         optimization_result = None
         fallback_triggered = False
         fallback_reason = ""
+        penalty_audit = {}
 
         if eligible_strategies:
             # 估计风险代理
@@ -467,7 +509,7 @@ class PipelineOptimizerV2:
             )
 
             # 尝试优化
-            optimization_result = self.step_2_optimizer(
+            optimization_result, penalty_audit = self.step_2_optimizer(
                 eligible_strategies,
                 risk_proxies
             )
@@ -503,6 +545,11 @@ class PipelineOptimizerV2:
         else:
             final_weights = {sid: 0.0 for sid in self.strategy_ids}
 
+        # 记录原始权重（优化器输出，未经过后处理平滑）
+        raw_weights = {}
+        if optimization_result is not None and len(optimization_result.weights) > 0:
+            raw_weights = dict(zip(eligible_strategies, optimization_result.weights))
+
         # 构建结果
         result = PipelineResult(
             success=optimization_result is not None and optimization_result.success,
@@ -523,6 +570,11 @@ class PipelineOptimizerV2:
                 sid: final_weights[sid] - self.previous_weights.get(sid, 0.0)
                 for sid in self.strategy_ids
             },
+            raw_weights=raw_weights,
+            smoothed_weights=final_weights,
+            smooth_penalty_value=penalty_audit.get("smooth_penalty_value", 0.0),
+            smooth_penalty_lambda=penalty_audit.get("smooth_penalty_lambda", 0.0),
+            smooth_penalty_mode=penalty_audit.get("smooth_penalty_mode", "l2"),
             data_fingerprint=data_fingerprint,
             config_fingerprint=config_fingerprint,
             commit_hash=commit_hash,

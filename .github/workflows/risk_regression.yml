@@ -92,57 +92,10 @@ jobs:
           fi
         fi
 
-  spl6b_optimizer_gate:
-    runs-on: ubuntu-latest
-    name: SPL-6b Optimizer Regression Gate
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0  # Full history for commit hash
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt || true  # Continue if no requirements.txt
-        # Install essential packages
-        pip install pandas numpy scipy
-
-    - name: Run SPL-6b Optimizer Gate Tests
-      run: |
-        python tests/test_spl6b_optimizer_gate.py
-      continue-on-error: false  # FAIL will block the PR
-
-    - name: Upload SPL-6b optimizer report
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: spl6b-optimizer-gate-report
-        path: reports/spl6b_optimizer_manifest.json
-        retention-days: 30
-
-    - name: Check Optimizer Gate Result
-      if: always()
-      run: |
-        if [ -f reports/spl6b_optimizer_manifest.json ]; then
-          if grep -q '"block_release": true' reports/spl6b_optimizer_manifest.json; then
-            echo "❌ Optimizer Gate FAILED - Release is blocked"
-            exit 1
-          else
-            echo "✅ Optimizer Gate PASSED"
-          fi
-        fi
-
   comment_pr:
     runs-on: ubuntu-latest
     name: Comment PR with Results
-    needs: [spl4_risk_regression, spl5_ci_gate, spl6b_optimizer_gate]
+    needs: [spl4_risk_regression, spl5_ci_gate]
     if: github.event_name == 'pull_request'
 
     steps:
@@ -160,12 +113,6 @@ jobs:
       with:
         name: spl5-ci-gate-report
         path: reports/spl5/
-
-    - name: Download SPL-6b report
-      uses: actions/download-artifact@v3
-      with:
-        name: spl6b-optimizer-gate-report
-        path: reports/spl6b/
 
     - name: Comment PR with results
       uses: actions/github-script@v6
@@ -213,33 +160,7 @@ jobs:
             body += '### SPL-5 CI Gate\n\n⚠️ Report not available\n\n';
           }
 
-          // SPL-6b Results
-          try {
-            const spl6bPath = 'reports/spl6b/spl6b_optimizer_manifest.json';
-            if (fs.existsSync(spl6bPath)) {
-              const spl6bData = JSON.parse(fs.readFileSync(spl6bPath, 'utf8'));
-              const blockRelease = spl6bData.block_release;
-              const passCount = spl6bData.tests?.filter(t => t.status === 'PASS').length || 0;
-              const failCount = spl6bData.tests?.filter(t => t.status === 'FAIL').length || 0;
-              const skipCount = spl6bData.tests?.filter(t => t.status === 'SKIP').length || 0;
-
-              body += '### SPL-6b Optimizer Gate\n\n';
-              body += `- **Total Tests**: ${spl6bData.tests?.length || 0}\n`;
-              body += `- **Passed**: ${passCount}\n`;
-              body += `- **Failed**: ${failCount}\n`;
-              body += `- **Skipped**: ${skipCount}\n`;
-              body += `- **Block Release**: ${blockRelease ? '🚫 YES' : '✅ NO'}\n\n`;
-
-              if (failCount > 0) {
-                body += '**Failed Tests:**\n';
-                spl6bData.tests.filter(t => t.status === 'FAIL').forEach(t => {
-                  body += `- \`${t.name}\`: ${t.message}\n`;
-                });
-              }
-            }
-          } catch (error) {
-            body += '### SPL-6b Optimizer Gate\n\n⚠️ Report not available\n\n';
-          }
+          body += '\n---\n\n*Note: Optimizer regression tests are now run in a separate workflow.*\n';
 
           github.rest.issues.createComment({
             issue_number: context.issue.number,

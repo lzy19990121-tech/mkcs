@@ -61,17 +61,35 @@ class ConstrainedOptimizer:
     def optimize(
         self,
         risk_proxies: Dict[str, Any],
-        initial_weights: Optional[np.ndarray] = None
+        initial_weights: Optional[np.ndarray] = None,
+        smooth_penalty_config: Optional[Dict[str, Any]] = None
     ) -> OptimizationResult:
         """运行优化
 
         Args:
             risk_proxies: 风险代理参数
             initial_weights: 初始权重（可选）
+            smooth_penalty_config: 平滑惩罚配置 {"lambda": float, "mode": "l1"|"l2", "previous_weights": np.ndarray}
 
         Returns:
             OptimizationResult
         """
+        import time
+        start_time = time.time()
+
+        # 提取平滑惩罚配置
+        smooth_lambda = 0.0
+        smooth_mode = "l2"
+        previous_weights = None
+
+        if smooth_penalty_config:
+            smooth_lambda = smooth_penalty_config.get("lambda", 0.0)
+            smooth_mode = smooth_penalty_config.get("mode", "l2")
+            previous_weights = smooth_penalty_config.get("previous_weights", None)
+
+        if smooth_lambda > 0 and previous_weights is not None:
+            print(f"  启用权重平滑惩罚: lambda={smooth_lambda}, mode={smooth_mode}")
+
         import time
         start_time = time.time()
 
@@ -84,7 +102,7 @@ class ConstrainedOptimizer:
             # 确保权重和为1
             initial_weights = initial_weights / initial_weights.sum()
 
-            # 定义目标函数
+            # 定义目标函数（支持平滑惩罚）
             def objective_function(weights):
                 # 目标：最大化收益 = 最小化负收益
                 expected_return = weights @ risk_proxies["expected_returns"]
@@ -95,11 +113,21 @@ class ConstrainedOptimizer:
                     covariance_matrix, weights
                 )
 
-                # 最大化收益 - 风险惩罚
+                # 权重平滑惩罚
+                smooth_penalty = 0.0
+                if smooth_lambda > 0 and previous_weights is not None:
+                    if smooth_mode == "l1":
+                        # L1: sum of absolute changes
+                        smooth_penalty = smooth_lambda * np.sum(np.abs(weights - previous_weights))
+                    else:  # l2
+                        # L2: sum of squared changes
+                        smooth_penalty = smooth_lambda * np.sum((weights - previous_weights) ** 2)
+
+                # 最大化收益 - 风险惩罚 - 平滑惩罚
                 lambda_risk = 0.5
                 objective = expected_return - lambda_risk * np.var(
                     weights @ risk_proxies["returns_matrix"].T
-                )
+                ) - smooth_penalty
 
                 return -objective  # 负号因为 minimize
 
@@ -160,6 +188,16 @@ class ConstrainedOptimizer:
             self.diagnostics.constraint_violations = violations
 
             # 创建结果
+            # 计算最终的平滑惩罚值（用于审计）
+            final_smooth_penalty = 0.0
+            if smooth_lambda > 0 and previous_weights is not None:
+                if smooth_mode == "l1":
+                    final_smooth_penalty = smooth_lambda * np.sum(np.abs(optimal_weights - previous_weights))
+                else:  # l2
+                    final_smooth_penalty = smooth_lambda * np.sum((optimal_weights - previous_weights) ** 2)
+
+                print(f"  平滑惩罚值: {final_smooth_penalty:.6f}")
+
             opt_result = OptimizationResult(
                 success=result.success,
                 weights=optimal_weights,
@@ -171,7 +209,10 @@ class ConstrainedOptimizer:
                 solver_iterations=self.diagnostics.solver_iterations,
                 computation_time=self.diagnostics.computation_time,
                 solver_used="SLSQP",
-                fallback_triggered=False
+                fallback_triggered=False,
+                smooth_penalty_value=final_smooth_penalty,
+                smooth_penalty_lambda=smooth_lambda,
+                smooth_penalty_mode=smooth_mode
             )
 
             # 添加可解释性信息
@@ -191,7 +232,10 @@ class ConstrainedOptimizer:
                 status=SolverStatus.ERROR.value,
                 error_message=str(e),
                 solver_used="SLSQP",
-                fallback_triggered=False
+                fallback_triggered=False,
+                smooth_penalty_value=0.0,
+                smooth_penalty_lambda=smooth_lambda,
+                smooth_penalty_mode=smooth_mode
             )
 
 
@@ -200,7 +244,8 @@ class FallbackAllocator:
 
     def __init__(self):
         """初始化降级分配器"""
-        pass
+        from analysis.optimization_risk_proxies import RiskProxyCalculator
+        self.risk_calculator = RiskProxyCalculator()
 
     def allocate(
         self,
@@ -252,7 +297,10 @@ class FallbackAllocator:
             solver_used="inverse_variance",
             fallback_triggered=True,
             expected_return=weights @ expected_returns,
-            expected_risk=np.sqrt(weights @ covariance_matrix @ weights)
+            expected_risk=np.sqrt(weights @ covariance_matrix @ weights),
+            smooth_penalty_value=0.0,
+            smooth_penalty_lambda=0.0,
+            smooth_penalty_mode="l2"
         )
 
         result.message = "使用降级分配器（方差倒数）"
@@ -275,12 +323,14 @@ class PortfolioOptimizerV2:
 
     def run_optimization(
         self,
-        risk_proxies: Dict[str, Any]
+        risk_proxies: Dict[str, Any],
+        smooth_penalty_config: Optional[Dict[str, Any]] = None
     ) -> OptimizationResult:
         """运行优化（主 + 降级）
 
         Args:
             risk_proxies: 风险代理参数
+            smooth_penalty_config: 平滑惩罚配置 {"lambda": float, "mode": "l1"|"l2", "previous_weights": np.ndarray}
 
         Returns:
             OptimizationResult
@@ -291,7 +341,7 @@ class PortfolioOptimizerV2:
 
         # 尝试主优化器
         print("\n尝试主优化器...")
-        result = self.optimizer.optimize(risk_proxies)
+        result = self.optimizer.optimize(risk_proxies, smooth_penalty_config=smooth_penalty_config)
 
         # 如果失败，使用降级分配器
         if not result.success or not result.constraints_satisfied:
