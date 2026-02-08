@@ -274,7 +274,7 @@ class PipelineOptimizerV2:
 
                     gating_decisions[strategy_id] = decision
 
-        print(f"\nEligible 策略: {len(eligigible_strategies)}/{len(self.strategy_ids)}")
+        print(f"\nEligible 策略: {len(eligible_strategies)}/{len(self.strategy_ids)}")
         print(f"  {eligible_strategies}")
 
         return eligible_strategies, gating_decisions

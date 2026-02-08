@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import json
 import argparse
+import hashlib
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent
@@ -38,7 +39,7 @@ from analysis.optimization_risk_proxies import RiskProxyCalculator
 from analysis.portfolio_optimizer_v2 import PortfolioOptimizerV2
 from analysis.pipeline_optimizer_v2 import PipelineOptimizerV2, PipelineConfig
 from analysis.window_scanner import WindowScanner
-from analysis.portfolio.budget_allocator import RulesBasedAllocator
+from analysis.portfolio.budget_allocator import RuleBasedAllocator
 
 
 @dataclass
@@ -49,6 +50,9 @@ class GroupConfig:
     use_gating: bool = False
     use_optimizer: bool = False
     use_rules: bool = False
+    use_smoothing: bool = False
+    smooth_lambda: float = 0.0
+    smooth_mode: str = "l2"
 
 
 @dataclass
@@ -162,6 +166,12 @@ class SPL6bComparison:
                 name="SPL-6b Optimizer",
                 description="SPL-6b 优化器分配",
                 use_optimizer=True
+            ),
+            "B+": GroupConfig(
+                name="SPL-6b Optimizer + Smoothing",
+                description="SPL-6b 优化器 + 权重平滑惩罚 (λ=2.0)",
+                use_optimizer=True,
+                use_smoothing=True
             ),
             "C": GroupConfig(
                 name="SPL-5a Gating + SPL-6b Optimizer",
@@ -290,10 +300,10 @@ class SPL6bComparison:
         n = len(self.strategy_ids)
         equal_weights = {sid: 1.0/n for sid in self.strategy_ids}
 
-        # 计算组合收益
-        returns_matrix = np.array([
-            r.to_dataframe()['step_pnl'].values for r in self.replays
-        ]).T  # (n_steps, n_strategies)
+        # 计算组合收益 - 使用最小长度对齐
+        returns_list = [r.to_dataframe()['step_pnl'].values for r in self.replays]
+        min_len = min(len(r) for r in returns_list)
+        returns_matrix = np.array([r[:min_len] for r in returns_list]).T  # (n_steps, n_strategies)
 
         # 加权收益
         weights_array = np.array([equal_weights[sid] for sid in self.strategy_ids])
@@ -364,10 +374,10 @@ class SPL6bComparison:
         else:
             weights = dict(zip(self.strategy_ids, result.weights))
 
-        # 计算组合收益
-        returns_matrix = np.array([
-            r.to_dataframe()['step_pnl'].values for r in self.replays
-        ]).T
+        # 计算组合收益 - 使用最小长度对齐
+        returns_list = [r.to_dataframe()['step_pnl'].values for r in self.replays]
+        min_len = min(len(r) for r in returns_list)
+        returns_matrix = np.array([r[:min_len] for r in returns_list]).T
 
         weights_array = np.array([weights[sid] for sid in self.strategy_ids])
         portfolio_returns = returns_matrix @ weights_array
@@ -403,6 +413,93 @@ class SPL6bComparison:
 
         return metrics
 
+    def run_group_b_plus_optimizer_with_smoothing(self) -> GroupMetrics:
+        """运行 Group B+: SPL-6b Optimizer + 权重平滑惩罚"""
+        print("\n" + "="*60)
+        print("Group B+: SPL-6b Optimizer + Weight Smoothing")
+        print("="*60)
+
+        # 创建优化问题
+        problem = OptimizationProblem(
+            name="spl6b_comparison_smooth",
+            description="SPL-6b 对照实验 + 权重平滑",
+            n_strategies=len(self.strategy_ids),
+            strategy_ids=self.strategy_ids,
+            expected_returns=np.zeros(len(self.strategy_ids)),
+            covariance_matrix=np.eye(len(self.strategy_ids))
+        )
+
+        # 创建优化器
+        optimizer = PortfolioOptimizerV2(problem)
+
+        # 估计风险代理
+        risk_proxies = self.risk_calculator.estimate_risk_proxies(self.replays, {})
+
+        # 设置权重平滑参数
+        previous_weights = np.ones(len(self.strategy_ids)) / len(self.strategy_ids)
+        smooth_config = {
+            "lambda": 2.0,  # 显著的平滑惩罚
+            "mode": "l2",
+            "previous_weights": previous_weights
+        }
+
+        # 运行优化（带平滑惩罚）
+        result = optimizer.run_optimization(risk_proxies, smooth_penalty_config=smooth_config)
+
+        if not result.success:
+            print("  优化失败，使用等权重")
+            weights = {sid: 1.0/len(self.strategy_ids) for sid in self.strategy_ids}
+            smooth_penalty_value = 0.0
+        else:
+            weights = dict(zip(self.strategy_ids, result.weights))
+            smooth_penalty_value = result.smooth_penalty_value
+
+        # 计算组合收益 - 使用最小长度对齐
+        returns_list = [r.to_dataframe()['step_pnl'].values for r in self.replays]
+        min_len = min(len(r) for r in returns_list)
+        returns_matrix = np.array([r[:min_len] for r in returns_list]).T
+
+        weights_array = np.array([weights[sid] for sid in self.strategy_ids])
+        portfolio_returns = returns_matrix @ weights_array
+
+        # 计算指标
+        metrics = GroupMetrics(group_name="B+")
+        metrics.weights = weights
+        metrics.total_return = portfolio_returns.sum()
+        metrics.daily_returns = portfolio_returns
+
+        metrics.worst_case_return = np.percentile(portfolio_returns, 5)
+        metrics.cvar_95 = self._calculate_cvar(portfolio_returns, 0.95)
+        metrics.cvar_99 = self._calculate_cvar(portfolio_returns, 0.99)
+
+        cumulative = np.cumsum(portfolio_returns)
+        metrics.max_drawdown, metrics.drawdown_duration = self._calculate_max_drawdown(cumulative)
+
+        metrics.correlation_spike_frequency = self._calculate_correlation_spike(returns_matrix)
+        metrics.co_crash_count = self._calculate_co_crash(returns_matrix)
+
+        stress_mask = portfolio_returns < -0.02
+        if stress_mask.sum() > 0:
+            stress_returns = returns_matrix[stress_mask]
+            if stress_returns.shape[0] > 1:
+                corr_matrix = np.corrcoef(stress_returns.T)
+                upper_tri = corr_matrix[np.triu_indices(corr_matrix.shape[0], k=1)]
+                metrics.tail_correlation = np.abs(upper_tri).mean()
+
+        # 计算权重波动
+        weight_changes = [abs(weights_array[i] - previous_weights[i]) for i in range(len(weights_array))]
+        metrics.weight_jitter = np.mean(weight_changes)
+        metrics.max_weight_change = np.max(weight_changes)
+
+        print(f"  Total Return: {metrics.total_return:.4f}")
+        print(f"  CVaR-95: {metrics.cvar_95:.4f}")
+        print(f"  Max DD: {metrics.max_drawdown:.2%}")
+        print(f"  Co-crash: {metrics.co_crash_count}")
+        print(f"  Smooth Penalty: {smooth_penalty_value:.6f}")
+        print(f"  Weight Jitter: {metrics.weight_jitter:.4f}")
+
+        return metrics
+
     def run_group_c_gating_optimizer(self) -> GroupMetrics:
         """运行 Group C: SPL-5a Gating + SPL-6b Optimizer"""
         print("\n" + "="*60)
@@ -418,10 +515,10 @@ class SPL6bComparison:
 
         weights = result.weights
 
-        # 计算组合收益
-        returns_matrix = np.array([
-            r.to_dataframe()['step_pnl'].values for r in self.replays
-        ]).T
+        # 计算组合收益 - 使用最小���度对齐
+        returns_list = [r.to_dataframe()['step_pnl'].values for r in self.replays]
+        min_len = min(len(r) for r in returns_list)
+        returns_matrix = np.array([r[:min_len] for r in returns_list]).T
 
         weights_array = np.array([weights.get(sid, 0.0) for sid in self.strategy_ids])
         portfolio_returns = returns_matrix @ weights_array
@@ -478,11 +575,12 @@ class SPL6bComparison:
             ], sort_keys=True).encode()
         ).hexdigest()[:16]
 
-        # 运行三组
+        # 运行所有组
         group_metrics = {}
 
         group_metrics["A"] = self.run_group_a_rules()
         group_metrics["B"] = self.run_group_b_optimizer()
+        group_metrics["B+"] = self.run_group_b_plus_optimizer_with_smoothing()
         group_metrics["C"] = self.run_group_c_gating_optimizer()
 
         # 计算 trade-offs

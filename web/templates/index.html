@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>交易回测系统 - 可视化</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
         * {
             margin: 0;
@@ -264,6 +265,108 @@
             margin-bottom: 20px;
             opacity: 0.5;
         }
+
+        /* 表格筛选和排序样式 */
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #0f1419;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .filter-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #161f2e;
+            border: 1px solid #2a3441;
+            border-radius: 6px;
+            color: #e6e6e6;
+            font-size: 0.9rem;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .filter-hint {
+            font-size: 0.75rem;
+            color: #8899a6;
+            margin-left: 10px;
+        }
+
+        .filter-hint kbd {
+            background: #161f2e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        th.sortable:hover {
+            background: #1a2332;
+        }
+
+        th.sortable::after {
+            content: '⇅';
+            position: absolute;
+            right: 8px;
+            opacity: 0.3;
+            font-size: 0.8em;
+        }
+
+        th.sortable.asc::after {
+            content: '↑';
+            opacity: 1;
+            color: #00d4aa;
+        }
+
+        th.sortable.desc::after {
+            content: '↓';
+            opacity: 1;
+            color: #00d4aa;
+        }
+
+        /* 交易行点击效果 */
+        tr.trade-row {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        tr.trade-row:hover {
+            background: #1a2332 !important;
+        }
+
+        /* Toast 通知 */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast {
+            background: #161f2e;
+            border-left: 4px solid #00d4aa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -294,6 +397,15 @@
         </div>
     </div>
 
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 快捷键提示 -->
+    <div class="shortcut-hint">
+        <kbd>Ctrl</kbd>+<kbd>F</kbd> 筛选 | <kbd>Ctrl</kbd>+<kbd>E</kbd> 导出
+    </div>
+
+    <script src="/static/js/app.js"></script>
     <script>
         // 全局状态
         let currentBacktestId = null;
@@ -509,34 +621,46 @@
             }
 
             return `
-                <table>
+                <div class="table-controls">
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="text" class="filter-input" id="tradesFilter" placeholder="筛选交易记录..." data-filter-target="tradesTableBody">
+                        <span class="filter-hint"><kbd>Ctrl</kbd>+<kbd>F</kbd></span>
+                    </div>
+                    <div class="export-buttons">
+                        <button class="btn btn-icon" onclick="exportTable('tradesTable', 'csv')" title="导出 CSV">📥</button>
+                    </div>
+                </div>
+                <table id="tradesTable" data-sortable="true">
                     <thead>
                         <tr>
-                            <th>时间</th>
-                            <th>标的</th>
-                            <th>方向</th>
-                            <th>价格</th>
-                            <th>数量</th>
-                            <th>手续费</th>
-                            <th>盈亏</th>
+                            <th class="sortable" data-column="timestamp">时间</th>
+                            <th class="sortable" data-column="symbol">标的</th>
+                            <th class="sortable" data-column="side">方向</th>
+                            <th class="sortable" data-column="price">价格</th>
+                            <th class="sortable" data-column="quantity">数量</th>
+                            <th class="sortable" data-column="commission">手续费</th>
+                            <th class="sortable" data-column="pnl">盈亏</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tradesTableBody">
                         ${trades.map(t => `
-                            <tr>
-                                <td>${formatDateTime(t.timestamp)}</td>
-                                <td>${t.symbol}</td>
-                                <td><span class="badge ${t.side.toLowerCase()}">${t.side}</span></td>
-                                <td>$${t.price.toFixed(2)}</td>
-                                <td>${t.quantity}</td>
-                                <td>$${t.commission.toFixed(2)}</td>
-                                <td class="${t.pnl > 0 ? 'positive' : t.pnl < 0 ? 'negative' : ''}">
+                            <tr class="trade-row" onclick="showTradeDetail(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                                <td data-label="时间">${formatDateTime(t.timestamp)}</td>
+                                <td data-label="标的">${t.symbol}</td>
+                                <td data-label="方向"><span class="badge ${t.side.toLowerCase()}">${t.side}</span></td>
+                                <td data-label="价格">$${t.price.toFixed(2)}</td>
+                                <td data-label="数量">${t.quantity}</td>
+                                <td data-label="手续费">$${t.commission.toFixed(2)}</td>
+                                <td data-label="盈亏" class="${t.pnl > 0 ? 'positive' : t.pnl < 0 ? 'negative' : ''}">
                                     ${t.pnl ? (t.pnl > 0 ? '+' : '') + '$' + t.pnl.toFixed(2) : '-'}
                                 </td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
+                <div class="filter-count" style="padding: 10px; text-align: center; color: #8899a6;">
+                    显示 ${trades.length} 条记录
+                </div>
             `;
         }
 
@@ -547,28 +671,40 @@
             }
 
             return `
-                <table>
+                <div class="table-controls">
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="text" class="filter-input" id="rejectsFilter" placeholder="筛选拒绝记录..." data-filter-target="rejectsTableBody">
+                        <span class="filter-hint"><kbd>Ctrl</kbd>+<kbd>F</kbd></span>
+                    </div>
+                    <div class="export-buttons">
+                        <button class="btn btn-icon" onclick="exportTable('rejectsTable', 'csv')" title="导出 CSV">📥</button>
+                    </div>
+                </div>
+                <table id="rejectsTable" data-sortable="true">
                     <thead>
                         <tr>
-                            <th>时间</th>
-                            <th>标的</th>
-                            <th>操作</th>
-                            <th>原因</th>
-                            <th>置信度</th>
+                            <th class="sortable" data-column="timestamp">时间</th>
+                            <th class="sortable" data-column="symbol">标的</th>
+                            <th class="sortable" data-column="action">操作</th>
+                            <th class="sortable" data-column="reason">原因</th>
+                            <th class="sortable" data-column="confidence">置信度</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="rejectsTableBody">
                         ${rejects.map(r => `
-                            <tr>
-                                <td>${formatDateTime(r.timestamp)}</td>
-                                <td>${r.symbol}</td>
-                                <td><span class="badge ${r.action.toLowerCase()}">${r.action}</span></td>
-                                <td>${r.reason}</td>
-                                <td>${r.confidence ? (r.confidence * 100).toFixed(1) + '%' : '-'}</td>
+                            <tr class="trade-row">
+                                <td data-label="时间">${formatDateTime(r.timestamp)}</td>
+                                <td data-label="标的">${r.symbol}</td>
+                                <td data-label="操作"><span class="badge ${r.action.toLowerCase()}">${r.action}</span></td>
+                                <td data-label="原因">${r.reason}</td>
+                                <td data-label="置信度">${r.confidence ? (r.confidence * 100).toFixed(1) + '%' : '-'}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
+                <div class="filter-count" style="padding: 10px; text-align: center; color: #8899a6;">
+                    显示 ${rejects.length} 条记录
+                </div>
             `;
         }
 
@@ -604,6 +740,286 @@
                 minute: '2-digit'
             });
         }
+
+        // ==================== 表格筛选功能 ====================
+        let tableFilters = {};
+
+        function initTableFilters() {
+            const filterInputs = document.querySelectorAll('[data-filter-target]');
+            filterInputs.forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const targetId = e.target.dataset.filterTarget;
+                    filterTable(targetId, e.target.value);
+                });
+
+                // Ctrl+F 快捷键
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        input.value = '';
+                        filterTable(input.dataset.filterTarget, '');
+                    }
+                });
+            });
+        }
+
+        function filterTable(tbodyId, query) {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+
+            const rows = tbody.querySelectorAll('tr');
+            const lowerQuery = query.toLowerCase();
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const rowText = row.textContent.toLowerCase();
+                const matches = rowText.includes(lowerQuery);
+                row.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+
+            // 更新计数
+            const table = tbody.parentElement;
+            const countEl = table.parentElement.querySelector('.filter-count');
+            if (countEl) {
+                const total = rows.length;
+                countEl.textContent = `显示 ${visibleCount} / ${total} 条记录`;
+            }
+        }
+
+        // ==================== 表格排序功能 ====================
+        let tableSortState = { column: null, direction: 'asc' };
+
+        function initTableSort() {
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const table = th.closest('table');
+                    const tbody = table.querySelector('tbody');
+                    const columnIndex = Array.from(th.parentElement.children).indexOf(th);
+                    const column = th.dataset.column;
+
+                    // 切换排序方向
+                    if (tableSortState.column === column) {
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortState.column = column;
+                        tableSortState.direction = 'asc';
+                    }
+
+                    // 更新排序指示器
+                    document.querySelectorAll('th.sortable').forEach(header => {
+                        header.classList.remove('asc', 'desc');
+                    });
+                    th.classList.add(tableSortState.direction);
+
+                    // 排序
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    rows.sort((a, b) => {
+                        const aValue = getCellValue(a, columnIndex);
+                        const bValue = getCellValue(b, columnIndex);
+                        let result = 0;
+
+                        if (typeof aValue === 'number' && typeof bValue === 'number') {
+                            result = aValue - bValue;
+                        } else {
+                            result = String(aValue).localeCompare(String(bValue));
+                        }
+
+                        return tableSortState.direction === 'asc' ? result : -result;
+                    });
+
+                    // 重新插入
+                    rows.forEach(row => tbody.appendChild(row));
+                });
+            });
+        }
+
+        function getCellValue(row, columnIndex) {
+            const cell = row.cells[columnIndex];
+            const text = cell.textContent.trim();
+
+            // 尝试解析数字
+            if (text.startsWith('$') || text.startsWith('+') || text.startsWith('-')) {
+                const num = parseFloat(text.replace(/[$,+%]/g, ''));
+                if (!isNaN(num)) return num;
+            }
+
+            // 尝试解析百分比
+            if (text.endsWith('%')) {
+                const num = parseFloat(text.replace('%', ''));
+                if (!isNaN(num)) return num;
+            }
+
+            return text;
+        }
+
+        // ==================== 导出功能 ====================
+        function exportTable(tableId, format) {
+            const table = document.getElementById(tableId);
+            if (!table) {
+                showToast('表格不存在', 'error');
+                return;
+            }
+
+            if (format === 'csv') {
+                exportTableToCSV(table);
+            } else if (format === 'json') {
+                exportTableToJSON(table);
+            }
+        }
+
+        function exportTableToCSV(table) {
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const csv = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => {
+                    const text = cell.textContent.trim().replace(/"/g, '""');
+                    return `"${text}"`;
+                }).join(',');
+            }).join('\n');
+
+            downloadFile(csv, `trades_${Date.now()}.csv`, 'text/csv');
+            showToast('表格已导出为 CSV', 'success');
+        }
+
+        function exportTableToJSON(table) {
+            const headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent.trim());
+            const rows = table.querySelectorAll('tbody tr');
+
+            const data = Array.from(rows).map(row => {
+                const cells = row.querySelectorAll('td');
+                const obj = {};
+                headers.forEach((header, i) => {
+                    obj[header] = cells[i]?.textContent.trim() || '';
+                });
+                return obj;
+            });
+
+            downloadFile(JSON.stringify(data, null, 2), `trades_${Date.now()}.json`, 'application/json');
+            showToast('表格已导出为 JSON', 'success');
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ==================== Toast 通知 ====================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==================== 交易详情 ====================
+        function showTradeDetail(trade) {
+            // 创建模态框
+            const existingModal = document.querySelector('.trade-modal');
+            if (existingModal) existingModal.remove();
+
+            const modal = document.createElement('div');
+            modal.className = 'trade-modal';
+            modal.innerHTML = `
+                <div class="modal-overlay" onclick="this.parentElement.remove()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>交易详情</h3>
+                        <button class="modal-close" onclick="this.closest('.trade-modal').remove()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="trade-detail-grid">
+                            <div class="detail-row">
+                                <span class="label">时间</span>
+                                <span class="value">${formatDateTime(trade.timestamp)}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">标的</span>
+                                <span class="value">${trade.symbol}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">方向</span>
+                                <span class="value"><span class="badge ${trade.side.toLowerCase()}">${trade.side}</span></span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">价格</span>
+                                <span class="value">$${trade.price?.toFixed(2) || '-'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">数量</span>
+                                <span class="value">${trade.quantity || '-'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">手续费</span>
+                                <span class="value">$${trade.commission?.toFixed(2) || '-'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">盈亏</span>
+                                <span class="value ${trade.pnl > 0 ? 'positive' : trade.pnl < 0 ? 'negative' : ''}">
+                                    ${trade.pnl ? (trade.pnl > 0 ? '+' : '') + '$' + trade.pnl.toFixed(2) : '-'}
+                                </span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">交易ID</span>
+                                <span class="value">${trade.trade_id || '-'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="this.closest('.trade-modal').remove()">关闭</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+            modal.style.display = 'flex';
+        }
+
+        // ==================== 键盘快捷键 ====================
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+F - 聚焦筛选框
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                const activeTab = document.querySelector('.tab.active');
+                if (activeTab) {
+                    const tabName = activeTab.textContent.includes('交易') ? 'trades' : 'rejects';
+                    const filterInput = document.querySelector(`#${tabName}Filter`);
+                    if (filterInput) filterInput.focus();
+                }
+            }
+
+            // Ctrl+E - 导出当前表格
+            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                e.preventDefault();
+                const activeTab = document.querySelector('.tab.active');
+                if (activeTab) {
+                    const tabName = activeTab.textContent.includes('交易') ? 'tradesTable' : 'rejectsTable';
+                    exportTable(tabName, 'csv');
+                }
+            }
+        });
+
+        // ==================== 更新渲染函数以初始化增强功能 ====================
+        const originalRenderDashboard = renderDashboard;
+        renderDashboard = function(data, metrics) {
+            originalRenderDashboard(data, metrics);
+
+            // 延迟初始化以确保 DOM 已更新
+            setTimeout(() => {
+                initTableFilters();
+                initTableSort();
+            }, 100);
+        };
     </script>
 </body>
 </html>

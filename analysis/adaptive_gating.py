@@ -55,7 +55,7 @@ class GatingDecision:
             "threshold": self.threshold,
             "current_value": self.current_value,
             "reason": self.reason,
-            "regime": self.regime.to_dict(),
+            "regime": self.regime.to_dict() if self.regime else None,
             "timestamp": self.timestamp.isoformat()
         }
 

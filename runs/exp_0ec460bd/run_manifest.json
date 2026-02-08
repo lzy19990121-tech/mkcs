@@ -1,0 +1,37 @@
+{
+  "experiment_id": "exp_0ec460bd",
+  "started_at": "2026-02-08T15:09:02.096890",
+  "ended_at": "2026-02-08T15:09:02.194541",
+  "status": "completed",
+  "git_commit": "310e1c77",
+  "git_branch": "main",
+  "repo_dirty": false,
+  "config_hash": "cfg_0ec460bd",
+  "data_hash": null,
+  "mode": "replay_mock",
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "GOOGL"
+  ],
+  "start_date": "2024-01-01",
+  "end_date": "2024-01-31",
+  "interval": "1d",
+  "cost_model": {
+    "commission_per_share": 0.01,
+    "slippage_bps": 2
+  },
+  "artifacts": [
+    "summary.json",
+    "equity_curve.csv",
+    "trades.csv",
+    "risk_rejects.csv"
+  ],
+  "metrics": {
+    "initial_cash": 100000.0,
+    "final_equity": 100435.94,
+    "total_return": 0.0043594,
+    "total_pnl": 435.94,
+    "trade_count": 3
+  }
+}
