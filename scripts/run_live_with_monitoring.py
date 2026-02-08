@@ -99,13 +99,20 @@ class MonitoredLiveTrader:
             )
 
         # 告警管理器
-        self.alerting_manager = AlertingManager()
+        self.alerting_manager = AlertingManager(config_path=None)
 
-        # Post-mortem 生成器
-        self.postmortem_generator = PostMortemGenerator()
+        # Post-mortem 生成器（使用第一个 symbol 的策略 ID）
+        strategy_id = f"ma_{strategy_config['fast_period']}_{strategy_config['slow_period']}"
+        self.postmortem_generator = PostMortemGenerator(
+            strategy_id=strategy_id,
+            replay_data_path=None
+        )
 
         # 事件存储
-        self.event_store = RiskEventStore("data/risk_events.db")
+        self.event_store = RiskEventStore(
+            db_path="data/risk_events.db",
+            enable_wal=True
+        )
 
         # ========== 3. LiveTrader 配置 ==========
         config = LiveTradingConfig(
