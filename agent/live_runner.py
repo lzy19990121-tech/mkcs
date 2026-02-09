@@ -20,6 +20,7 @@ from core.models import Bar, Signal, OrderIntent, Trade, Position
 from core.context import RunContext
 from skills.market_data.base import MarketDataSource
 from skills.market_data.yahoo_source import YahooFinanceSource
+from skills.market_data.hybrid_realtime_source import HybridRealtimeSource
 from skills.strategy.base import Strategy
 from skills.risk.base import RiskManager
 from broker.paper import PaperBroker
@@ -57,6 +58,11 @@ class LiveTradingConfig:
     max_daily_signals: int = 10               # 每日最大信号数
     emergency_stop_loss: Decimal = Decimal("0.05")  # 紧急止损比例
 
+    # 数据源配置
+    use_finnhub: bool = True                  # 是否使用 Finnhub 实时数据
+    check_interval_seconds: int = 2            # 检查间隔（秒），Finnhub 限制 60次/分钟
+    enable_websocket: bool = True              # 是否启用 WebSocket 实时推送
+
     # SPL-7a 配置
     enable_risk_monitor: bool = True          # 是否启用 SPL-7a 监控
     risk_monitor_output: str = "data/live_monitoring"  # 监控输出目录
@@ -82,18 +88,33 @@ class LiveTrader:
 
         Args:
             config: 实时交易配置
-            data_source: 市场数据源（默认 YahooFinanceSource）
+            data_source: 市场数据源（默认 HybridRealtimeSource: Yahoo + Finnhub）
             strategy: 交易策略
             risk_manager: 风控管理器
             broker: 经纪商（默认 PaperBroker）
             event_logger: 事件日志记录器
         """
         self.config = config
-        self.data_source = data_source or YahooFinanceSource()
+
+        # 使用混合实时数据源（Yahoo 历史 + Finnhub 实时）
+        if data_source is not None:
+            self.data_source = data_source
+        else:
+            self.data_source = HybridRealtimeSource(
+                use_finnhub=config.use_finnhub,
+                check_interval=config.check_interval_seconds,
+                enable_websocket=config.enable_websocket
+            )
+
         self.strategy = strategy
         self.risk_manager = risk_manager
         self.broker = broker or PaperBroker()
         self.event_logger = event_logger or EventLogger()
+
+        # 启动实时数据流
+        if hasattr(self.data_source, 'start_realtime'):
+            self.data_source.start_realtime()
+            logger.info("实时数据流已启动 (Yahoo + Finnhub WebSocket)")
 
         # ========== SPL-7a Risk Monitor ==========
         self.risk_monitor = None
@@ -171,6 +192,11 @@ class LiveTrader:
     def stop(self):
         """停止实时交易"""
         self._running = False
+
+        # 关闭实时数据流
+        if hasattr(self.data_source, 'stop_realtime'):
+            self.data_source.stop_realtime()
+            logger.info("实时数据流已关闭")
 
         # ========== SPL-7a: 关闭监控器 ==========
         if self.risk_monitor:
