@@ -318,7 +318,7 @@ class RiskMonitor:
             self.stats["state_transitions"] += 1
 
             # 存储状态转换事件
-            self.event_store.store_event(
+            self.event_store.write_event(
                 event_type="STATE_TRANSITION",
                 data=transition.to_dict()
             )
@@ -330,9 +330,11 @@ class RiskMonitor:
         for alert in trend_alerts:
             trends[alert.metric_name] = {
                 "direction": alert.direction.value,
-                "slope": alert.slope,
-                "r_squared": alert.r_squared,
-                "trend_type": alert.trend_type.value
+                "magnitude": alert.magnitude.value,
+                "current_value": alert.current_value,
+                "threshold": alert.threshold,
+                "alert_type": alert.alert_type,
+                "severity": alert.severity
             }
         self._current_trends[symbol] = trends
 
@@ -350,7 +352,7 @@ class RiskMonitor:
             self.stats["alerts_generated"] += 1
 
             # 存储告警事件
-            self.event_store.store_event(
+            self.event_store.write_event(
                 event_type="ALERT",
                 data=alert.to_dict()
             )

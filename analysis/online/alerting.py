@@ -384,9 +384,12 @@ class AlertRuleEngine:
         recent_gating_count = len(signal.gating_events)
         metrics["gating_frequency"] = min(1.0, recent_gating_count / 10.0)
 
-        # 波动率趋势（斜率）
+        # 波动率趋势（使用 direction 作为趋势指标）
         if "volatility" in trends:
-            metrics["volatility_trend"] = trends["volatility"].slope
+            trend = trends["volatility"]
+            # direction: "UP"=1, "DOWN"=-1, "NEUTRAL"=0
+            direction_map = {"UP": 1, "DOWN": -1, "NEUTRAL": 0, "INCREASING": 1, "DECREASING": -1, "STABLE": 0}
+            metrics["volatility_trend"] = float(direction_map.get(trend.get("direction", "NEUTRAL"), 0))
         else:
             metrics["volatility_trend"] = 0.0
 
