@@ -850,6 +850,7 @@ class AlertingManager:
 
         # 当前运行上下文
         self._current_run_id: Optional[str] = None
+        self._current_links: Dict[str, str] = {}
 
     def _load_sender_config(self) -> Dict[str, Any]:
         """从配置文件或环境变量加载发送器配置"""

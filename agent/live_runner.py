@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Callable, TYPE_CHECKING
+import pytz
 
 if TYPE_CHECKING:
     from analysis.online.risk_monitor import RiskMonitor
@@ -225,10 +226,10 @@ class LiveTrader:
 
         # 创建运行时上下文
         ctx = RunContext(
+            now=now,
+            trading_date=now.date(),
             mode="live",
-            timestamp=now,
-            current_bar={},
-            is_trading_hours=True
+            bar_interval=self.config.interval
         )
 
         for symbol in self.config.symbols:
@@ -249,7 +250,7 @@ class LiveTrader:
         try:
             bars = self.data_source.get_bars_until(
                 symbol=symbol,
-                end=ctx.timestamp,
+                end=ctx.now,
                 interval=self.config.interval
             )
 
@@ -258,11 +259,10 @@ class LiveTrader:
                 return
 
             current_bar = bars[-1]
-            ctx.current_bar[symbol] = current_bar
 
             # 记录数据获取事件
             self._log_event(
-                timestamp=ctx.timestamp,
+                timestamp=ctx.now,
                 symbol=symbol,
                 stage="data_fetch",
                 payload={"bar_count": len(bars), "latest_price": float(current_bar.close)}
@@ -310,7 +310,7 @@ class LiveTrader:
 
                     # 记录信号事件
                     self._log_event(
-                        timestamp=ctx.timestamp,
+                        timestamp=ctx.now,
                         symbol=symbol,
                         stage="signal_gen",
                         payload={
@@ -329,13 +329,13 @@ class LiveTrader:
                     if self.risk_manager:
                         intent = self.risk_manager.check(
                             signal=signal,
-                            positions=self.broker.get_all_positions(),
+                            positions=self.broker.get_positions(),
                             cash_balance=self.broker.get_cash_balance(),
                             portfolio_value=self.broker.get_total_equity()
                         )
 
                         self._log_event(
-                            timestamp=ctx.timestamp,
+                            timestamp=ctx.now,
                             symbol=symbol,
                             stage="risk_check",
                             payload={"approved": intent.approved, "reason": intent.risk_reason}
@@ -349,7 +349,7 @@ class LiveTrader:
                         from core.models import Signal
                         intent = OrderIntent(
                             signal=signal,
-                            timestamp=ctx.timestamp,
+                            timestamp=ctx.now,
                             approved=True,
                             risk_reason="无风控，自动通过"
                         )
@@ -378,7 +378,7 @@ class LiveTrader:
                         self._daily_stats["orders_submitted"] += 1
 
                         self._log_event(
-                            timestamp=ctx.timestamp,
+                            timestamp=ctx.now,
                             symbol=symbol,
                             stage="order_submit",
                             payload={
@@ -426,14 +426,17 @@ class LiveTrader:
 
     def _is_trading_hours(self) -> bool:
         """检查是否在交易时段"""
-        now = datetime.now()
+        # 获取市场时区的时间
+        market_tz = pytz.timezone(self.config.timezone)
+        now_local = datetime.now()
+        now_market = now_local.astimezone(market_tz)
 
         # 检查是否是工作日
-        if now.weekday() >= 5:  # 周六日
+        if now_market.weekday() >= 5:  # 周六日
             return False
 
-        # 检查时间
-        current_time = now.strftime("%H:%M")
+        # 检查时间（使用市场时区）
+        current_time = now_market.strftime("%H:%M")
 
         if self.config.enable_after_hours:
             # 包含盘前盘后
@@ -445,25 +448,32 @@ class LiveTrader:
 
     def _wait_for_market_open(self):
         """等待市场开盘"""
-        now = datetime.now()
-        next_open = now.replace(
-            hour=int(self.config.market_open_time.split(":")[0]),
-            minute=int(self.config.market_open_time.split(":")[1]),
+        # 获取市场时区
+        market_tz = pytz.timezone(self.config.timezone)
+        now_local = datetime.now()
+        now_market = now_local.astimezone(market_tz)
+
+        # 计算下一个开盘时间（市场时区）
+        hour, minute = map(int, self.config.market_open_time.split(":"))
+        next_open = now_market.replace(
+            hour=hour,
+            minute=minute,
             second=0,
             microsecond=0
         )
 
         # 如果已经过了今天的开盘时间，等到明天
-        if now >= next_open:
+        if now_market >= next_open:
             next_open += timedelta(days=1)
 
         # 跳过周末
         while next_open.weekday() >= 5:
             next_open += timedelta(days=1)
 
-        wait_seconds = (next_open - now).total_seconds()
+        # 将市场时间转回本地时间计算等待秒数
+        wait_seconds = (next_open - now_market).total_seconds()
 
-        logger.info(f"等待市场开盘，还有 {wait_seconds / 3600:.1f} 小时")
+        logger.info(f"等待市场开盘 (纽约时间 {next_open.strftime('%Y-%m-%d %H:%M')})，还有 {wait_seconds / 3600:.1f} 小时")
         time.sleep(min(wait_seconds, 300))  # 最多等5分钟再检查
 
     def _reset_daily_stats_if_needed(self):

@@ -104,7 +104,8 @@ class YahooFinanceSource(MarketDataSource):
         if self.enable_cache and cache_key in self._cache:
             cached_bars = self._cache[cache_key]
             logger.debug(f"使用缓存数据: {symbol} ({len(cached_bars)} bars)")
-            return [b for b in cached_bars if start <= b.timestamp <= end]
+            # 处理时区感知的 datetime 比较
+            return [b for b in cached_bars if self._datetime_in_range(b.timestamp, start, end)]
 
         # 获取数据
         bars = self._fetch_bars(symbol, start, end, interval)
@@ -271,7 +272,13 @@ class YahooFinanceSource(MarketDataSource):
 
         Yahoo Finance 对不同时间周期有数据长度限制
         """
-        now = datetime.now()
+        # 确保 now 和 end 的时区感知状态一致
+        if end.tzinfo is not None:
+            # end 有时区信息，now 也需要有时区信息
+            now = datetime.now().astimezone(end.tzinfo)
+        else:
+            # end 无时区信息，now 也不要有时区信息
+            now = datetime.now()
 
         interval_limits = {
             "1m": timedelta(days=7),      # 1分钟数据最多7天
@@ -294,6 +301,35 @@ class YahooFinanceSource(MarketDataSource):
         start = base_time - max_lookback
 
         return start
+
+    def _datetime_in_range(self, dt: datetime, start: datetime, end: datetime) -> bool:
+        """安全地比较 datetime，处理时区感知问题
+
+        Args:
+            dt: 要检查的 datetime
+            start: 开始时间
+            end: 结束时间
+
+        Returns:
+            是否在范围内
+        """
+        # 将所有 datetime 转换为可比较的形式
+        # 如果 dt 有时区信息，将 start/end 也转换为该时区
+        if dt.tzinfo is not None:
+            # dt 有时区，确保 start/end 也有时区
+            if start.tzinfo is None:
+                # 使用 UTC 作为中间时区
+                start = start.replace(tzinfo=dt.tzinfo)
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=dt.tzinfo)
+        else:
+            # dt 无时区，确保 start/end 也无时区
+            if start.tzinfo is not None:
+                start = start.replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = end.replace(tzinfo=None)
+
+        return start <= dt <= end
 
     def _convert_interval(self, interval: str) -> str:
         """将内部时间周期转换为 Yahoo Finance 格式"""
