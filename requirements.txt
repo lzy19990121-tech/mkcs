@@ -1,5 +1,6 @@
 # Core dependencies
 python-dateutil>=2.8.2
+pytz>=2023.3
 
 # Market Data
 yfinance>=0.2.28
