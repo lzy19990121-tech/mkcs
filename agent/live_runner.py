@@ -50,7 +50,6 @@ class LiveTradingConfig:
     mode: TradingMode = TradingMode.PAPER
     symbols: List[str] = field(default_factory=list)
     interval: str = "1m"                      # 数据更新频率
-    check_interval_seconds: int = 60          # 检查间隔（秒）
     market_open_time: str = "09:30"           # 市场开盘时间
     market_close_time: str = "16:00"          # 市场收盘时间
     timezone: str = "America/New_York"        # 时区

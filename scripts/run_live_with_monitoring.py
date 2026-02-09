@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 os.chdir(project_root)
 
 from agent.live_runner import LiveTrader, LiveTradingConfig, TradingMode
-from skills.market_data.yahoo_source import YahooFinanceSource
+from skills.market_data.hybrid_realtime_source import HybridRealtimeSource
 from skills.strategy.moving_average import MAStrategy
 from skills.risk.basic_risk import BasicRiskManager
 from broker.paper import PaperBroker
@@ -46,7 +46,8 @@ class MonitoredLiveTrader:
         symbols: list,
         strategy_config: dict = None,
         initial_cash: float = 100000,
-        interval: str = "5m"
+        interval: str = "5m",
+        check_interval: int = 2
     ):
         """初始化
 
@@ -55,14 +56,19 @@ class MonitoredLiveTrader:
             strategy_config: 策略配置
             initial_cash: 初始资金
             interval: 数据更新间隔
+            check_interval: 交易检查间隔（秒）， Finnhub 限制 60次/分钟
         """
         self.symbols = symbols
 
         # ========== 1. 基础组件 ==========
         logger.info("初始化基础组件...")
 
-        # 数据源
-        self.data_source = YahooFinanceSource(enable_cache=True)
+        # 数据源 - 混合实时数据源 (Yahoo 历史 + Finnhub 实时)
+        self.data_source = HybridRealtimeSource(
+            use_finnhub=True,
+            check_interval=check_interval,
+            enable_websocket=True
+        )
 
         # 策略
         strategy_config = strategy_config or {"fast_period": 5, "slow_period": 20}
@@ -119,7 +125,7 @@ class MonitoredLiveTrader:
             mode=TradingMode.PAPER,
             symbols=symbols,
             interval=interval,
-            check_interval_seconds=60,  # 每分钟检查一次
+            check_interval_seconds=check_interval,  # 每 N 秒检查一次
             market_open_time="09:30",
             market_close_time="16:00",
             emergency_stop_loss=Decimal("0.05")  # 5% 紧急止损
@@ -235,19 +241,26 @@ class MonitoredLiveTrader:
         # 打印启动检查清单
         self._print_startup_checklist()
 
+        # 启动实时数据流
+        if hasattr(self.data_source, 'start_realtime'):
+            self.data_source.start_realtime()
+
         # 启动交易
         try:
             self.trader.start()
         except KeyboardInterrupt:
             logger.info("\n收到停止信号...")
         finally:
+            # 停止实时数据流
+            if hasattr(self.data_source, 'stop_realtime'):
+                self.data_source.stop_realtime()
             self._print_summary()
 
     def _print_startup_checklist(self):
         """打印启动检查清单"""
         logger.info("\n📋 启动检查清单:")
         checks = [
-            ("数据源", "✓ Yahoo Finance 已连接" if self.data_source else "✗ 数据源未初始化"),
+            ("数据源", "✓ Yahoo Finance + Finnhub 已连接" if self.data_source else "✗ 数据源未初始化"),
             ("策略", f"✓ MA({self.strategy.fast_period}, {self.strategy.slow_period})"),
             ("风控", "✓ BasicRiskManager 已启用"),
             ("监控", f"✓ SPL-7a 已启用（{len(self.symbols)} 个采集器）"),
@@ -293,12 +306,20 @@ def main():
                        help='初始资金（默认: 100000）')
     parser.add_argument('--interval', default='5m',
                        help='数据更新间隔（默认: 5m）')
+    parser.add_argument('--check-interval', type=int, default=2,
+                       help='交易检查间隔秒数（默认: 2，最小1，Finnhub限制60次/分钟）')
     parser.add_argument('--fast', type=int, default=5,
                        help='MA 快线周期（默认: 5）')
     parser.add_argument('--slow', type=int, default=20,
                        help='MA 慢线周期（默认: 20）')
 
     args = parser.parse_args()
+
+    # 验证 check_interval
+    if args.check_interval < 1:
+        args.check_interval = 1
+    elif args.check_interval > 60:
+        args.check_interval = 60
 
     # 创建交易器
     trader = MonitoredLiveTrader(
@@ -308,7 +329,8 @@ def main():
             "slow_period": args.slow
         },
         initial_cash=args.cash,
-        interval=args.interval
+        interval=args.interval,
+        check_interval=args.check_interval
     )
 
     # 启动
